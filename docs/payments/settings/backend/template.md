@@ -59,6 +59,19 @@ depends:
 - controller: 
 - DTO запроса и ответа: 
 
+## Схема
+
+```mermaid
+sequenceDiagram
+  participant Client as Клиент
+  participant Controller as Controller
+  participant Service as Service
+  participant DB as PostgreSQL
+  Client->>Controller: 
+  Controller->>Service: 
+  Service->>DB: 
+```
+
 ## Критерии приёмки артефакта
 | ID | Критерий |
 |----|----------|
@@ -70,3 +83,4 @@ depends:
 | BE-6 | Эффекты называют строки PostgreSQL. |
 | BE-7 | В данных названы таблица, сущность и миграция. В файле нет слоёв экрана. |
 | BE-8 | Файл не выпускает новых AC-*. |
+| BE-9 | В «Схеме» sequenceDiagram вызова: клиент, controller, сервис, PostgreSQL. |

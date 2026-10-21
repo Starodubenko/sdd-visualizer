@@ -18,6 +18,7 @@ import {
   isUpdatesDocumentPath,
 } from './collapser-updates';
 import { splitMarkdownSections } from './markdown-sections';
+import { MermaidDiagram } from './MermaidDiagram';
 import { fragmentFromHref } from './text-fragment';
 
 type Props = {
@@ -75,6 +76,25 @@ const linkifyChildren = (
     }
     return child;
   });
+
+const MarkdownPre: FC<ComponentPropsWithoutRef<'pre'>> = (preProps) => {
+  const { children, ...rest } = preProps;
+  let source: string | null = null;
+  Children.forEach(children, (child) => {
+    if (!isValidElement<{ className?: string; children?: ReactNode }>(child)) {
+      return;
+    }
+    const className = child.props.className ?? '';
+    if (!className.split(/\s+/).includes('language-mermaid')) {
+      return;
+    }
+    source = String(child.props.children ?? '').replace(/\n$/, '');
+  });
+  if (source !== null) {
+    return <MermaidDiagram source={source} />;
+  }
+  return <pre {...rest}>{children}</pre>;
+};
 
 const makeMarkdownComponents = (
   documentPath: string,
@@ -174,6 +194,7 @@ const makeMarkdownComponents = (
     em: wrapText('em'),
     img: Image,
     a: Anchor,
+    pre: MarkdownPre,
     code: Code,
   };
 };

@@ -73,3 +73,31 @@ depends:
 | Таблица PostgreSQL | Сущность TypeORM | Миграция |
 |--------------------|------------------|----------|
 | нет | нет | чтение существующей таблицы orders |
+
+## Схема
+
+```mermaid
+sequenceDiagram
+  participant Client as Клиент
+  participant Controller as OrdersController
+  participant Service as OrdersService
+  participant DB as PostgreSQL orders
+
+  Client->>Controller: GET /orders?day=
+  Controller->>Service: day
+  alt нет права читать заказы
+    Service-->>Client: 403 forbidden
+  else хранилище не ответило
+    Service->>DB: чтение
+    DB-->>Service: ошибка
+    Service-->>Client: 500 orders_unavailable
+  else за день нет строк
+    Service->>DB: чтение
+    DB-->>Service: пусто
+    Service-->>Client: 200 []
+  else есть заказы
+    Service->>DB: чтение
+    DB-->>Service: строки
+    Service-->>Client: 200 number, amount, status
+  end
+```

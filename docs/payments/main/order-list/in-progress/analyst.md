@@ -29,6 +29,30 @@ role: analyst
 - путь: /orders
 - поля: number, amount, status
 
+## Схема
+
+```mermaid
+sequenceDiagram
+  actor Operator as Оператор
+  participant Page as Список заказов
+  participant API as GET /orders
+
+  Operator->>Page: открывает меню «Платежи»
+  Page->>API: day выбранного дня
+  alt есть заказы
+    API-->>Page: number, amount, status
+    Page-->>Operator: таблица «Номер», «Сумма», «Статус»
+  else заказов нет
+    API-->>Page: пустой список
+    Page-->>Operator: «Заказов нет»
+  else загрузка не удалась
+    API-->>Page: ошибка
+    Page-->>Operator: «Не удалось загрузить заказы» и кнопка «Повторить»
+    Operator->>Page: «Повторить»
+    Page->>API: тот же day
+  end
+```
+
 ## Задачи
 
 | Номер | Скриншот и ссылка на Pixo | Описание |
@@ -46,3 +70,4 @@ role: analyst
 | AN-3 | Результат сформулирован как то, что видно на экране. |
 | AN-4 | AC-1…AC-3 проверяются по таблице, пустому дню и ошибке. |
 | AN-8 | Раздел «Задачи» — таблица из трёх колонок. |
+| AN-9 | sequenceDiagram показывает открытие списка, таблицу, пустой день, ошибку и повтор. |

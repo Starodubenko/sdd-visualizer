@@ -51,3 +51,20 @@ depends:
 ## Тексты
 
 Тексты интерфейса взяты из designer.md без перефразирования.
+
+## Схема
+
+```mermaid
+classDiagram
+  class OrderListPage {
+    страница списка
+  }
+  class OrderListFeature {
+    пустой день и ошибка
+  }
+  class OrdersController {
+    GET /orders
+  }
+  OrderListPage --> OrderListFeature
+  OrderListFeature --> OrdersController
+```

@@ -39,6 +39,17 @@ depends:
 ## Тексты
 Тексты интерфейса взяты из designer.md без перефразирования.
 
+## Схема
+
+```mermaid
+classDiagram
+  class Page
+  class Feature
+  class Controller
+  Page --> Feature
+  Feature --> Controller
+```
+
 ## Критерии приёмки артефакта
 | ID | Критерий |
 |----|----------|
@@ -52,3 +63,4 @@ depends:
 | FE-8 | Дельта перечисляет только ручной маппинг и ветки. |
 | FE-9 | Тексты совпадают с designer.md. |
 | FE-10 | Файл не выпускает новых AC-* и не меняет контракт. |
+| FE-11 | В «Схеме» classDiagram: page, feature и controller из слоёв и вызова API. |
