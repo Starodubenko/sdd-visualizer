@@ -106,7 +106,7 @@ sequenceDiagram
 
 ## Уровень 2. Локальная спецификация
 
-Носитель передачи — директория `docs/<проект>/<фича>/` в репозитории документации. Файл роли лежит в `in-progress`, `ready-to-implement` или `done`. Роль добавляет свой файл до основного кода и только после приёмки предыдущего артефакта.
+Носитель передачи — директория `docs/<проект>/<эпик>/<фича>/` в репозитории документации. Файл роли лежит в `in-progress`, `ready-to-implement` или `done`. Роль добавляет свой файл до основного кода и только после приёмки предыдущего артефакта.
 
 ### Флоу
 
@@ -117,7 +117,7 @@ sequenceDiagram
   actor Back as Backend
   actor Tester as Тестировщик
   actor Front as Frontend
-  participant Spec as docs/project/feature
+  participant Spec as docs/project/epic/feature
 
   Analyst->>Spec: analyst.md
   Designer->>Spec: designer.md

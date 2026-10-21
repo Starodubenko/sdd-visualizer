@@ -33,7 +33,18 @@ class StatusBody {
 
 class FeatureBody {
   project = '';
+  epic = '';
   featureId = '';
+}
+
+class EpicBody {
+  project = '';
+  epicId = '';
+}
+
+class RenameEpicBody {
+  path = '';
+  epicId = '';
 }
 
 class RenameFeatureBody {
@@ -77,6 +88,11 @@ class SettingsSubagentRenameBody {
   nextName = '';
 }
 
+class DocLinkBody {
+  project = '';
+  directory = '';
+}
+
 @Controller('api')
 export class DocumentsController {
   constructor(
@@ -115,9 +131,35 @@ export class DocumentsController {
     return this.documents.moveStatus(body.path, body.status);
   }
 
+  @Post('epics')
+  createEpic(@Body() body: EpicBody) {
+    return this.documents.createEpic(body.project, body.epicId);
+  }
+
+  @Post('epics/rename')
+  renameEpic(@Body() body: RenameEpicBody) {
+    return this.documents.renameEpic(body.path, body.epicId);
+  }
+
+  @Delete('epics')
+  async removeEpic(@Query('path') path: string) {
+    await this.documents.deleteEpic(path);
+    return { path };
+  }
+
+  @Get('doc-links/directories')
+  listDocLinkDirectory(@Query('project') project: string, @Query('path') path = '') {
+    return this.documents.listDocLinkDirectory(project, path);
+  }
+
+  @Post('doc-links')
+  createDocLink(@Body() body: DocLinkBody) {
+    return this.documents.createDocLink(body.project, body.directory);
+  }
+
   @Post('features')
   create(@Body() body: FeatureBody) {
-    return this.documents.createFeature(body.project, body.featureId);
+    return this.documents.createFeature(body.project, body.epic, body.featureId);
   }
 
   @Post('features/rename')

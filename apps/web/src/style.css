@@ -610,7 +610,7 @@ form {
 
 .pane ul.file-list-grid {
   display: grid;
-  grid-template-columns: max-content max-content max-content;
+  grid-template-columns: max-content max-content max-content max-content;
   column-gap: 16px;
   row-gap: 8px;
   width: fit-content;
@@ -636,6 +636,12 @@ form {
 
 .pane ul.file-list-grid > li > .status-tag.status-tag-changes {
   grid-column: 3;
+}
+
+.pane ul.file-list-grid > li > .file-row-actions {
+  grid-column: 4;
+  display: flex;
+  gap: 8px;
 }
 
 .status-tag {
@@ -973,6 +979,32 @@ html[data-theme='dark'] .modal-backdrop { background: #00000073; }
   flex-direction: row;
   align-items: center;
   gap: 8px;
+}
+.doc-link-path,
+.doc-link-links li {
+  word-break: break-all;
+}
+.doc-link-path {
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.doc-link-dirs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+}
+.doc-link-dirs button {
+  text-align: left;
+}
+.doc-link-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .copy-agent-list input[type='checkbox'] {
   width: 16px;

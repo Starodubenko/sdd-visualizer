@@ -80,7 +80,7 @@ test('грязное дерево docs проекта отклоняется и 
   await writeFile(join(remoteWork, 'docs/payments/from-remote.txt'), 'remote content', 'utf8');
   await commitAll(remoteWork, 'remote ahead');
   await pushMain(remoteWork, bare);
-  const dirtyPath = join(root, 'docs/payments/payment-card/in-progress/analyst.md');
+  const dirtyPath = join(root, 'docs/payments/main/payment-card/in-progress/analyst.md');
   const dirtyText = 'локальная правка без коммита';
   await writeFile(dirtyPath, dirtyText, 'utf8');
   const sync = new SyncService(root, root);

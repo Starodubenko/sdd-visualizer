@@ -3,8 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
-import { basename, dirname, join } from 'path';
+import { cp, lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from 'fs/promises';
+import { homedir } from 'os';
+import { basename, dirname, join, sep } from 'path';
 import { featureStatus, type FeatureFile } from './feature-status';
 import {
   DONE_DIR,
@@ -31,7 +32,7 @@ import {
   sectionSlug,
 } from './update-filename';
 
-export type NodeKind = 'docs' | 'project' | 'feature' | 'directory' | 'file';
+export type NodeKind = 'docs' | 'project' | 'epic' | 'feature' | 'directory' | 'file';
 
 export type FeatureFileDescriptor = FeatureFile & { path: string };
 
@@ -44,6 +45,13 @@ export type NodeDescription = {
 };
 
 const RESERVED = new Set(['method', 'global', 'settings']);
+
+export type DocLinkDirectory = {
+  path: string;
+  parent: string | null;
+  directories: string[];
+  links: { name: string; target: string }[];
+};
 
 @Injectable()
 export class DocumentsService {
@@ -100,6 +108,19 @@ export class DocumentsService {
         path: relativePath,
         kind: 'project',
         entries: entries.filter((entry) => entry.name !== 'settings'),
+      };
+    }
+    if (
+      parts.length === 3 &&
+      parts[0] === 'docs' &&
+      !RESERVED.has(parts[1]) &&
+      parts[2] !== 'settings' &&
+      !this.isFeatureDir(entries)
+    ) {
+      return {
+        path: relativePath,
+        kind: 'epic',
+        entries: await this.list(relativePath),
       };
     }
     const names = new Set(entries.map((entry) => entry.name));
@@ -200,7 +221,7 @@ export class DocumentsService {
       throw new BadRequestException('Некорректный файл изменения');
     }
     const parts = relativePath.split('/').filter(Boolean);
-    const featureDir = join(this.root, ...parts.slice(0, 3));
+    const featureDir = join(this.root, ...parts.slice(0, 4));
     const sourceAbsolute = await this.findFeatureSourceFile(featureDir, parsed.source);
     if (!sourceAbsolute) {
       throw new BadRequestException('Исходный файл спеки не найден');
@@ -245,9 +266,71 @@ export class DocumentsService {
     return null;
   }
 
-  async createFeature(project: string, featureId: string): Promise<{ path: string }> {
+  async createEpic(project: string, epicId: string): Promise<{ path: string }> {
+    if (!isFeatureId(project) || RESERVED.has(project)) {
+      throw new NotFoundException('Проект не найден');
+    }
+    if (!isFeatureId(epicId) || epicId === 'settings') {
+      throw new BadRequestException('Имя эпика — kebab-case');
+    }
+    const projectDir = resolveDocsPath(this.root, `docs/${project}`);
+    const projectInfo = await stat(projectDir).catch(() => null);
+    if (!projectInfo?.isDirectory()) {
+      throw new NotFoundException('Проект не найден');
+    }
+    const epicDir = join(projectDir, epicId);
+    const existing = await stat(epicDir).catch(() => null);
+    if (existing) {
+      throw new BadRequestException('Эпик уже существует');
+    }
+    await mkdir(epicDir);
+    clearTreeCache();
+    return { path: `docs/${project}/${epicId}` };
+  }
+
+  async renameEpic(relativePath: string, epicId: string): Promise<{ path: string }> {
+    const description = await this.describe(relativePath);
+    if (description.kind !== 'epic') {
+      throw new BadRequestException('Переименовывать можно только каталог эпика');
+    }
+    if (!isFeatureId(epicId) || epicId === 'settings') {
+      throw new BadRequestException('Имя эпика — kebab-case');
+    }
+    const parts = relativePath.split('/').filter(Boolean);
+    const project = parts[1];
+    const oldId = parts[2];
+    if (oldId === epicId) {
+      return { path: relativePath };
+    }
+    const projectDir = resolveDocsPath(this.root, `docs/${project}`);
+    const nextAbsolute = join(projectDir, epicId);
+    if (await stat(nextAbsolute).catch(() => null)) {
+      throw new BadRequestException('Эпик уже существует');
+    }
+    await rename(resolveDocsPath(this.root, relativePath), nextAbsolute);
+    clearTreeCache();
+    return { path: `docs/${project}/${epicId}` };
+  }
+
+  async deleteEpic(relativePath: string): Promise<void> {
+    const description = await this.describe(relativePath);
+    if (description.kind !== 'epic') {
+      throw new BadRequestException('Удалять можно только каталог эпика');
+    }
+    await rm(resolveDocsPath(this.root, relativePath), { recursive: true, force: true });
+    clearTreeCache();
+  }
+
+  async createFeature(
+    project: string,
+    epic: string,
+    featureId: string,
+  ): Promise<{ path: string }> {
     if (!isFeatureId(project) || RESERVED.has(project)) {
       throw new BadRequestException('Некорректное имя проекта');
+    }
+    if (!isFeatureId(epic) || epic === 'settings') {
+      throw new NotFoundException('Эпик не найден');
     }
     if (!isFeatureId(featureId)) {
       throw new BadRequestException('Имя фичи — kebab-case');
@@ -259,7 +342,15 @@ export class DocumentsService {
     if (!projectInfo.isDirectory()) {
       throw new NotFoundException('Проект не найден');
     }
-    const featureDir = join(projectDir, featureId);
+    const epicDir = join(projectDir, epic);
+    const epicInfo = await stat(epicDir).catch(() => null);
+    if (!epicInfo?.isDirectory()) {
+      throw new NotFoundException('Эпик не найден');
+    }
+    if (this.isFeatureDir(await listDirectory(epicDir))) {
+      throw new NotFoundException('Эпик не найден');
+    }
+    const featureDir = join(epicDir, featureId);
     const existing = await stat(featureDir).catch(() => null);
     if (existing) {
       throw new BadRequestException('Фича уже существует');
@@ -278,7 +369,7 @@ export class DocumentsService {
       ),
     );
     clearTreeCache();
-    return { path: `docs/${project}/${featureId}` };
+    return { path: `docs/${project}/${epic}/${featureId}` };
   }
 
   private async projectSettingsDir(project: string): Promise<string> {
@@ -844,20 +935,24 @@ export class DocumentsService {
       throw new BadRequestException('Имя фичи — kebab-case');
     }
     const parts = relativePath.split('/').filter(Boolean);
+    if (parts.length !== 4 || parts[0] !== 'docs') {
+      throw new BadRequestException('Переименовывать можно только каталог фичи');
+    }
     const project = parts[1];
-    const oldId = parts[2];
+    const epic = parts[2];
+    const oldId = parts[3];
     if (oldId === featureId) {
       return { path: relativePath };
     }
-    const projectDir = resolveDocsPath(this.root, `docs/${project}`);
+    const epicDir = resolveDocsPath(this.root, `docs/${project}/${epic}`);
     const oldAbsolute = resolveDocsPath(this.root, relativePath);
-    const newAbsolute = join(projectDir, featureId);
+    const newAbsolute = join(epicDir, featureId);
     const existing = await stat(newAbsolute).catch(() => null);
     if (existing) {
       throw new BadRequestException('Фича уже существует');
     }
     await rename(oldAbsolute, newAbsolute);
-    const newRelative = `docs/${project}/${featureId}`;
+    const newRelative = `docs/${project}/${epic}/${featureId}`;
     await this.walkFeatureFiles(newAbsolute, async (filePath) => {
       const content = await readFile(filePath, 'utf8');
       const lines = content.split('\n');
@@ -923,7 +1018,7 @@ export class DocumentsService {
     }
     this.assertFeatureStatusFilePath(relativePath);
     const pathParts = relativePath.replace(/\\/g, '/').split('/').filter(Boolean);
-    if (pathParts[3] !== DONE_DIR) {
+    if (pathParts[4] !== DONE_DIR) {
       throw new BadRequestException('Изменение можно создать только для выполненного файла');
     }
     const absolute = resolveDocsPath(this.root, relativePath);
@@ -937,7 +1032,7 @@ export class DocumentsService {
     const parts = relativePath.replace(/\\/g, '/').split('/').filter(Boolean);
     const updatesDir = join(
       this.root,
-      ...parts.slice(0, 3),
+      ...parts.slice(0, 4),
       'updates',
       IN_PROGRESS_DIR,
     );
@@ -958,10 +1053,10 @@ export class DocumentsService {
 
   private assertFeatureStatusFilePath(relativePath: string): void {
     const parts = relativePath.replace(/\\/g, '/').split('/').filter(Boolean);
-    if (parts.length !== 5 || parts[0] !== 'docs') {
+    if (parts.length !== 6 || parts[0] !== 'docs') {
       throw new BadRequestException('Путь не является файлом спеки');
     }
-    const statusSegment = parts[3];
+    const statusSegment = parts[4];
     if (
       statusSegment !== IN_PROGRESS_DIR &&
       statusSegment !== READY_DIR &&
@@ -1101,5 +1196,89 @@ export class DocumentsService {
       done.map((entry) => entry.name),
       hasOpenUpdates,
     );
+  }
+
+  async listDocLinkDirectory(project: string, rawPath: string): Promise<DocLinkDirectory> {
+    const docsPath = await this.projectDocsPath(project);
+    const requested = rawPath.trim() === '' ? homedir() : rawPath;
+    const absolute = await realpath(requested).catch(() => {
+      throw new NotFoundException('Каталог не найден');
+    });
+    const info = await stat(absolute).catch(() => null);
+    if (!info?.isDirectory()) {
+      throw new NotFoundException('Каталог не найден');
+    }
+    const entries = await readdir(absolute, { withFileTypes: true });
+    const directories: string[] = [];
+    const links: { name: string; target: string }[] = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+      const fullPath = join(absolute, entry.name);
+      if (entry.isSymbolicLink()) {
+        const target = await realpath(fullPath).catch(() => null);
+        if (target && (target === docsPath || target.startsWith(`${docsPath}${sep}`))) {
+          links.push({ name: entry.name, target });
+          continue;
+        }
+      }
+      const followed = await stat(fullPath).catch(() => null);
+      if (followed?.isDirectory()) {
+        directories.push(entry.name);
+      }
+    }
+    directories.sort((left, right) => left.localeCompare(right));
+    links.sort((left, right) => left.name.localeCompare(right.name));
+    const parent = dirname(absolute);
+    return {
+      path: absolute,
+      parent: parent === absolute ? null : parent,
+      directories,
+      links,
+    };
+  }
+
+  async createDocLink(
+    project: string,
+    directory: string,
+  ): Promise<{ path: string; target: string }> {
+    const docsPath = await this.projectDocsPath(project);
+    const workspace = await realpath(this.root);
+    const destination = await realpath(directory).catch(() => {
+      throw new NotFoundException('Каталог не найден');
+    });
+    const destinationInfo = await stat(destination).catch(() => null);
+    if (!destinationInfo?.isDirectory()) {
+      throw new NotFoundException('Каталог не найден');
+    }
+    if (destination === workspace || destination.startsWith(`${workspace}${sep}`)) {
+      throw new BadRequestException('Выберите другой каталог');
+    }
+    const linkPath = join(destination, project);
+    const existing = await lstat(linkPath).catch(() => null);
+    if (existing?.isSymbolicLink()) {
+      const current = await realpath(linkPath).catch(() => null);
+      if (current === docsPath) {
+        throw new BadRequestException('Ссылка уже существует');
+      }
+    }
+    if (existing) {
+      throw new BadRequestException('Каталог уже существует');
+    }
+    await symlink(docsPath, linkPath, 'dir');
+    return { path: linkPath, target: docsPath };
+  }
+
+  private async projectDocsPath(project: string): Promise<string> {
+    if (!isFeatureId(project) || RESERVED.has(project)) {
+      throw new NotFoundException('Проект не найден');
+    }
+    const projectDir = join(this.root, 'docs', project);
+    const info = await stat(projectDir).catch(() => null);
+    if (!info?.isDirectory()) {
+      throw new NotFoundException('Проект не найден');
+    }
+    return realpath(projectDir);
   }
 }

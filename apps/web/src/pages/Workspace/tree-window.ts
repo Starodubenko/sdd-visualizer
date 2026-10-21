@@ -10,6 +10,14 @@ export type FeatureFilterQuery = {
 export const isFeatureFilterActive = (query: FeatureFilterQuery): boolean =>
   query.nameQuery.trim() !== '' || query.status !== 'all';
 
+export const epicMatchesFilter = (epicName: string, query: string): boolean => {
+  const needle = query.trim();
+  if (needle === '') {
+    return true;
+  }
+  return epicName.toLowerCase().includes(needle.toLowerCase());
+};
+
 export const featureMatchesFilter = (
   featureName: string,
   featureStatus: FeatureStatus | undefined,
@@ -62,8 +70,8 @@ export const resolveFeaturePath = (
   if (statusIndex >= 0) {
     parts.splice(statusIndex);
   }
-  if (parts.length >= 3) {
-    return `${parts[0]}/${parts[1]}/${parts[2]}`;
+  if (parts.length >= 4) {
+    return parts.join('/');
   }
   return null;
 };

@@ -35,15 +35,15 @@ test('публикация кладёт шаблоны в bare-репозито�
   await mkdir(join(root, 'global'), { recursive: true });
   await writeFile(join(root, 'global/configs.yaml'), 'payments:\n  token: test-token\n', 'utf8');
   const documents = new DocumentsService(root);
-  await documents.createFeature('payments', 'new-card');
+  await documents.createFeature('payments', 'main', 'new-card');
   const changes = new ChangesService(root, root);
   const publish = new PublishService(root, root, changes);
   await publish.publish();
   const commitMessage = await git(['log', '-1', '--format=%B'], root);
   assert.match(commitMessage.stdout, /^Изменена документация/);
   assert.match(commitMessage.stdout, /\n - payments\n/);
-  assert.match(commitMessage.stdout, /\n    - new-card\n/);
-  assert.match(commitMessage.stdout, /\n       - in-progress\/analyst\.md/);
+  assert.match(commitMessage.stdout, /\n    - main\n/);
+  assert.match(commitMessage.stdout, /\n       - new-card\/in-progress\/analyst\.md/);
   const listed = await exec('git', [
     '-c',
     'core.quotepath=false',
@@ -55,13 +55,13 @@ test('публикация кладёт шаблоны в bare-репозито�
     'HEAD',
   ]);
   const names = listed.stdout;
-  assert.match(names, /docs\/payments\/new-card\/in-progress\/analyst.md/);
+  assert.match(names, /docs\/payments\/main\/new-card\/in-progress\/analyst.md/);
   assert.doesNotMatch(names, /configs\.yaml/);
   const analyst = await exec('git', [
     '--git-dir',
     bare,
     'show',
-    'HEAD:docs/payments/new-card/in-progress/analyst.md',
+    'HEAD:docs/payments/main/new-card/in-progress/analyst.md',
   ]);
   assert.match(analyst.stdout, /\| Номер \| Скриншот и ссылка на Pixo \| Описание \|/);
 });

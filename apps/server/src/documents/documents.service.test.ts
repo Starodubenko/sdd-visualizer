@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { DocumentsService } from './documents.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -9,9 +10,9 @@ import { copyFixtures } from '../test-support/copy-fixtures';
 test('статусы фич читаются по каталогам', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const invoices = await documents.describe('docs/billing/invoices');
-  const orderList = await documents.describe('docs/payments/order-list');
-  const paymentCard = await documents.describe('docs/payments/payment-card');
+  const invoices = await documents.describe('docs/billing/main/invoices');
+  const orderList = await documents.describe('docs/payments/main/order-list');
+  const paymentCard = await documents.describe('docs/payments/main/payment-card');
   assert.equal(invoices.status, 'changes');
   assert.equal(orderList.status, 'in_progress');
   assert.equal(paymentCard.status, 'in_progress');
@@ -20,18 +21,18 @@ test('статусы фич читаются по каталогам', async () 
 test('перенос файла из готово снимает готовность фичи', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  await rm(join(root, 'docs/billing/invoices/updates/in-progress'), {
+  await rm(join(root, 'docs/billing/main/invoices/updates/in-progress'), {
     recursive: true,
     force: true,
   });
   await documents.moveStatus(
-    'docs/billing/invoices/ready-to-implement/frontend.md',
+    'docs/billing/main/invoices/ready-to-implement/frontend.md',
     'in_progress',
   );
-  const invoices = await documents.describe('docs/billing/invoices');
+  const invoices = await documents.describe('docs/billing/main/invoices');
   assert.equal(invoices.status, 'in_progress');
   const moved = await readFile(
-    join(root, 'docs/billing/invoices/in-progress/frontend.md'),
+    join(root, 'docs/billing/main/invoices/in-progress/frontend.md'),
     'utf8',
   );
   assert.match(moved, /invoices/);
@@ -40,7 +41,7 @@ test('перенос файла из готово снимает готовно�
 test('дерево не возвращает текст большого файла', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const entries = await documents.list('docs/payments/order-list/in-progress');
+  const entries = await documents.list('docs/payments/main/order-list/in-progress');
   const payload = JSON.stringify(entries);
   assert.match(payload, /large\.md/);
   assert.doesNotMatch(payload, /UNIQUE_LARGE_BODY_SENTINEL/);
@@ -49,7 +50,7 @@ test('дерево не возвращает текст большого фай�
 test('список фичи скрывает каталоги статуса', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const entries = await documents.list('docs/payments/order-list');
+  const entries = await documents.list('docs/payments/main/order-list');
   const payload = JSON.stringify(entries);
   assert.ok(entries.some((entry) => entry.name === 'large.md'));
   assert.deepEqual(
@@ -58,7 +59,7 @@ test('список фичи скрывает каталоги статуса', a
       name: 'обзор.md',
       kind: 'file',
       status: 'done',
-      path: 'docs/payments/order-list/done/обзор.md',
+      path: 'docs/payments/main/order-list/done/обзор.md',
     },
   );
   assert.ok(
@@ -76,46 +77,46 @@ test('список фичи скрывает каталоги статуса', a
 test('перенос ключевых файлов в done меняет статус фичи', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const withOpenUpdate = await documents.describe('docs/billing/invoices');
+  const withOpenUpdate = await documents.describe('docs/billing/main/invoices');
   assert.equal(withOpenUpdate.status, 'changes');
   await documents.moveStatus(
-    'docs/billing/invoices/ready-to-implement/analyst.md',
+    'docs/billing/main/invoices/ready-to-implement/analyst.md',
     'done',
   );
-  const partial = await documents.describe('docs/billing/invoices');
+  const partial = await documents.describe('docs/billing/main/invoices');
   assert.equal(partial.status, 'changes');
   for (const name of ['designer.md', 'backend.md', 'tester.yaml', 'frontend.md']) {
     await documents.moveStatus(
-      `docs/billing/invoices/ready-to-implement/${name}`,
+      `docs/billing/main/invoices/ready-to-implement/${name}`,
       'done',
     );
   }
-  const keysDoneOpenUpdate = await documents.describe('docs/billing/invoices');
+  const keysDoneOpenUpdate = await documents.describe('docs/billing/main/invoices');
   assert.equal(keysDoneOpenUpdate.status, 'changes');
   await rm(
     join(
       root,
-      'docs/billing/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md',
+      'docs/billing/main/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md',
     ),
   );
   await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
     'done',
   );
   await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
     'done',
   );
-  const complete = await documents.describe('docs/billing/invoices');
+  const complete = await documents.describe('docs/billing/main/invoices');
   assert.equal(complete.status, 'done');
 });
 
 test('создание фичи пишет пять шаблонов в каталог в процессе', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  await documents.createFeature('payments', 'new-card');
+  await documents.createFeature('payments', 'main', 'new-card');
   const analyst = await readFile(
-    join(root, 'docs/payments/new-card/in-progress/analyst.md'),
+    join(root, 'docs/payments/main/new-card/in-progress/analyst.md'),
     'utf8',
   );
   assert.match(analyst, /\| Номер \| Скриншот и ссылка на Pixo \| Описание \|/);
@@ -123,7 +124,7 @@ test('создание фичи пишет пять шаблонов в ката
   assert.match(analyst, /AN-8/);
   for (const name of ['designer.md', 'backend.md', 'tester.yaml', 'frontend.md']) {
     const content = await readFile(
-      join(root, 'docs/payments/new-card/in-progress', name),
+      join(root, 'docs/payments/main/new-card/in-progress', name),
       'utf8',
     );
     assert.ok(content.includes('new-card'));
@@ -152,10 +153,10 @@ test('создание фичи учитывает лишний каталог �
     'utf8',
   );
   const documents = new DocumentsService(root);
-  await documents.createFeature('payments', 'with-extra');
-  await stat(join(root, 'docs/payments/with-extra/in-progress/extra-type.md'));
+  await documents.createFeature('payments', 'main', 'with-extra');
+  await stat(join(root, 'docs/payments/main/with-extra/in-progress/extra-type.md'));
   const extra = await readFile(
-    join(root, 'docs/payments/with-extra/in-progress/extra-type.md'),
+    join(root, 'docs/payments/main/with-extra/in-progress/extra-type.md'),
     'utf8',
   );
   assert.match(extra, /with-extra/);
@@ -167,9 +168,9 @@ test('каталог настроек только с agent.md не попада
   await mkdir(agentOnlyDir, { recursive: true });
   await writeFile(join(agentOnlyDir, 'agent.md'), 'agent\n', 'utf8');
   const documents = new DocumentsService(root);
-  await documents.createFeature('payments', 'no-agent-only');
+  await documents.createFeature('payments', 'main', 'no-agent-only');
   await assert.rejects(() =>
-    stat(join(root, 'docs/payments/no-agent-only/in-progress/agent-only.md')),
+    stat(join(root, 'docs/payments/main/no-agent-only/in-progress/agent-only.md')),
   );
   for (const name of [
     'analyst.md',
@@ -178,7 +179,7 @@ test('каталог настроек только с agent.md не попада
     'tester.yaml',
     'frontend.md',
   ]) {
-    await stat(join(root, 'docs/payments/no-agent-only/in-progress', name));
+    await stat(join(root, 'docs/payments/main/no-agent-only/in-progress', name));
   }
 });
 
@@ -196,12 +197,12 @@ test('создание фичи без шаблонов в настройках 
   }
   const documents = new DocumentsService(root);
   await assert.rejects(
-    () => documents.createFeature('payments', 'empty-settings'),
+    () => documents.createFeature('payments', 'main', 'empty-settings'),
     (error: unknown) =>
       error instanceof BadRequestException &&
       error.message === 'Нет шаблонов в настройках',
   );
-  await assert.rejects(() => stat(join(root, 'docs/payments/empty-settings')));
+  await assert.rejects(() => stat(join(root, 'docs/payments/main/empty-settings')));
 });
 
 test('каталог global скрыт от дерева', async () => {
@@ -210,11 +211,20 @@ test('каталог global скрыт от дерева', async () => {
   await assert.rejects(() => documents.list('global'), NotFoundException);
 });
 
-test('список проекта проставляет статус каталогам фич', async () => {
+test('список эпика проставляет статус каталогам фич', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const billing = await documents.list('docs/billing');
-  const payments = await documents.list('docs/payments');
+  const billingProject = await documents.list('docs/billing');
+  assert.equal(
+    billingProject.some((entry) => entry.name === 'invoices'),
+    false,
+  );
+  assert.deepEqual(
+    billingProject.find((entry) => entry.name === 'main'),
+    { name: 'main', kind: 'dir' },
+  );
+  const billing = await documents.list('docs/billing/main');
+  const payments = await documents.list('docs/payments/main');
   assert.deepEqual(
     billing.find((entry) => entry.name === 'invoices'),
     { name: 'invoices', kind: 'dir', status: 'changes' },
@@ -223,16 +233,18 @@ test('список проекта проставляет статус катал
     payments.find((entry) => entry.name === 'order-list'),
     { name: 'order-list', kind: 'dir', status: 'in_progress' },
   );
+  const epic = await documents.describe('docs/billing/main');
+  assert.equal(epic.kind, 'epic');
 });
 
 test('createUpdate пишет файл изменения и не трогает спеку', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const specPath = 'docs/billing/invoices/ready-to-implement/analyst.md';
+  const specPath = 'docs/billing/main/invoices/ready-to-implement/analyst.md';
   const patchBody = 'Краткий текст правки для теста.';
   const at = new Date('2026-10-21T14:05:00');
   const wouldBeUpdatePath =
-    'docs/billing/invoices/updates/in-progress/2026-10-21-1405-analyst-результат.md';
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-1405-analyst-результат.md';
   await assert.rejects(
     () => documents.createUpdate(specPath, 'Результат', patchBody, at),
     BadRequestException,
@@ -256,14 +268,14 @@ test('moveStatus для файла изменения дописывает се�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const updatePath =
-    'docs/billing/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md';
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md';
   const moved = await documents.moveStatus(updatePath, 'done');
   assert.equal(
     moved.path,
-    'docs/billing/invoices/updates/done/2026-10-21-0423-backend-пример-запроса.md',
+    'docs/billing/main/invoices/updates/done/2026-10-21-0423-backend-пример-запроса.md',
   );
   const backend = await readFile(
-    join(root, 'docs/billing/invoices/ready-to-implement/backend.md'),
+    join(root, 'docs/billing/main/invoices/ready-to-implement/backend.md'),
     'utf8',
   );
   assert.match(backend, /```json\n\{\}\n```/);
@@ -275,8 +287,8 @@ test('moveStatus для файла изменения отклоняет рас�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const updatePath =
-    'docs/billing/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md';
-  const analystPath = join(root, 'docs/billing/invoices/ready-to-implement/analyst.md');
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md';
+  const analystPath = join(root, 'docs/billing/main/invoices/ready-to-implement/analyst.md');
   const analystBefore = await readFile(analystPath, 'utf8');
   await assert.rejects(
     () => documents.moveStatus(updatePath, 'done'),
@@ -289,26 +301,26 @@ test('moveStatus для файла изменения отклоняет рас�
 test('список фичи проставляет hasOpenChange по source из updates/in-progress', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const entries = await documents.list('docs/billing/invoices');
+  const entries = await documents.list('docs/billing/main/invoices');
   assert.deepEqual(entries.find((entry) => entry.name === 'analyst.md'), {
     name: 'analyst.md',
     kind: 'file',
     status: 'ready',
-    path: 'docs/billing/invoices/ready-to-implement/analyst.md',
+    path: 'docs/billing/main/invoices/ready-to-implement/analyst.md',
     hasOpenChange: true,
   });
   const backend = entries.find((entry) => entry.name === 'backend.md');
   assert.ok(backend);
   assert.equal(backend.hasOpenChange, true);
   await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
     'done',
   );
   await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
     'done',
   );
-  const afterMove = await documents.list('docs/billing/invoices');
+  const afterMove = await documents.list('docs/billing/main/invoices');
   const analystAfter = afterMove.find((entry) => entry.name === 'analyst.md');
   const backendAfter = afterMove.find((entry) => entry.name === 'backend.md');
   assert.ok(analystAfter);
@@ -321,13 +333,13 @@ test('список фичи проставляет hasOpenChange по source и�
 test('renameFeature переименовывает каталог и строку feature в файлах', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const result = await documents.renameFeature('docs/payments/payment-card', 'card-pay');
-  assert.equal(result.path, 'docs/payments/card-pay');
-  await assert.rejects(() => stat(join(root, 'docs/payments/payment-card')));
-  const described = await documents.describe('docs/payments/card-pay');
+  const result = await documents.renameFeature('docs/payments/main/payment-card', 'card-pay');
+  assert.equal(result.path, 'docs/payments/main/card-pay');
+  await assert.rejects(() => stat(join(root, 'docs/payments/main/payment-card')));
+  const described = await documents.describe('docs/payments/main/card-pay');
   assert.equal(described.kind, 'feature');
   const analyst = await readFile(
-    join(root, 'docs/payments/card-pay/in-progress/analyst.md'),
+    join(root, 'docs/payments/main/card-pay/in-progress/analyst.md'),
     'utf8',
   );
   assert.match(analyst, /^# Карточка платежа/m);
@@ -339,37 +351,37 @@ test('renameFeature отклоняет некорректное имя', async (
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   await assert.rejects(
-    () => documents.renameFeature('docs/payments/payment-card', 'Bad Name'),
+    () => documents.renameFeature('docs/payments/main/payment-card', 'Bad Name'),
     (error: unknown) =>
       error instanceof BadRequestException &&
       error.message === 'Имя фичи — kebab-case',
   );
-  await stat(join(root, 'docs/payments/payment-card'));
+  await stat(join(root, 'docs/payments/main/payment-card'));
 });
 
 test('renameFeature отклоняет конфликт с существующей фичей', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   await assert.rejects(
-    () => documents.renameFeature('docs/payments/payment-card', 'order-list'),
+    () => documents.renameFeature('docs/payments/main/payment-card', 'order-list'),
     (error: unknown) =>
       error instanceof BadRequestException && error.message === 'Фича уже существует',
   );
-  await stat(join(root, 'docs/payments/payment-card'));
+  await stat(join(root, 'docs/payments/main/payment-card'));
 });
 
 test('renameFeature на то же имя не трогает каталог', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const result = await documents.renameFeature('docs/payments/payment-card', 'payment-card');
-  assert.equal(result.path, 'docs/payments/payment-card');
-  await stat(join(root, 'docs/payments/payment-card'));
+  const result = await documents.renameFeature('docs/payments/main/payment-card', 'payment-card');
+  assert.equal(result.path, 'docs/payments/main/payment-card');
+  await stat(join(root, 'docs/payments/main/payment-card'));
 });
 
 test('внутри фичи вложенные каталоги без статуса не получают точку в list', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const entries = await documents.list('docs/payments/order-list');
+  const entries = await documents.list('docs/payments/main/order-list');
   const assets = entries.find((entry) => entry.name === 'assets' && entry.kind === 'dir');
   assert.ok(assets);
   assert.equal(assets.status, undefined);
@@ -466,10 +478,10 @@ test('createSettingsSubagent не мешает созданию фичи без 
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   await documents.createSettingsSubagent('payments', 'analyst', 'context');
-  await documents.createFeature('payments', 'with-subagent');
-  await stat(join(root, 'docs/payments/with-subagent/in-progress/analyst.md'));
+  await documents.createFeature('payments', 'main', 'with-subagent');
+  await stat(join(root, 'docs/payments/main/with-subagent/in-progress/analyst.md'));
   await assert.rejects(() =>
-    stat(join(root, 'docs/payments/with-subagent/in-progress/context.md')),
+    stat(join(root, 'docs/payments/main/with-subagent/in-progress/context.md')),
   );
 });
 
@@ -670,4 +682,74 @@ test('copySettingsAgents отклоняет тот же проект и пуст
     (error: unknown) =>
       error instanceof BadRequestException && error.message === 'Выберите агента',
   );
+});
+
+test('createEpic создаёт пустой каталог и отклоняет повтор', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const created = await documents.createEpic('payments', 'checkout');
+  assert.equal(created.path, 'docs/payments/checkout');
+  const described = await documents.describe('docs/payments/checkout');
+  assert.equal(described.kind, 'epic');
+  await assert.rejects(
+    () => documents.createEpic('payments', 'checkout'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Эпик уже существует',
+  );
+  await assert.rejects(
+    () => documents.createEpic('payments', 'settings'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Имя эпика — kebab-case',
+  );
+});
+
+test('createFeature без эпика не создаёт каталог', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.createFeature('payments', 'missing', 'new-card'),
+    (error: unknown) =>
+      error instanceof NotFoundException && error.message === 'Эпик не найден',
+  );
+  await assert.rejects(() => stat(join(root, 'docs/payments/missing')));
+  await assert.rejects(() => stat(join(root, 'docs/payments/new-card')));
+});
+
+test('createDocLink создаёт symlink на проект вне репозитория', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const outside = await mkdtemp(join(tmpdir(), 'sdd-doc-link-'));
+  try {
+    const created = await documents.createDocLink('payments', outside);
+    const linkPath = join(await realpath(outside), 'payments');
+    assert.equal(created.path, linkPath);
+    assert.equal((await lstat(linkPath)).isSymbolicLink(), true);
+    assert.equal(await realpath(linkPath), await realpath(join(root, 'docs/payments')));
+    const listing = await documents.listDocLinkDirectory('payments', outside);
+    assert.deepEqual(
+      listing.links.find((link) => link.name === 'payments')?.target,
+      await realpath(join(root, 'docs/payments')),
+    );
+    await assert.rejects(
+      () => documents.createDocLink('payments', outside),
+      (error: unknown) =>
+        error instanceof BadRequestException && error.message === 'Ссылка уже существует',
+    );
+    await assert.rejects(
+      () => documents.createDocLink('payments', join(root, 'docs')),
+      (error: unknown) =>
+        error instanceof BadRequestException && error.message === 'Выберите другой каталог',
+    );
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test('renameFeature оставляет фичу в том же эпике', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const result = await documents.renameFeature('docs/billing/main/invoices', 'bills');
+  assert.equal(result.path, 'docs/billing/main/bills');
+  await assert.rejects(() => stat(join(root, 'docs/billing/bills')));
+  await stat(join(root, 'docs/billing/main/bills/ready-to-implement/analyst.md'));
 });

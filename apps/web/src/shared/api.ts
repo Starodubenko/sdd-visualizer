@@ -14,7 +14,7 @@ export type FeatureFile = {
 
 export type NodeDescription = {
   path: string;
-  kind: 'docs' | 'project' | 'feature' | 'directory' | 'file';
+  kind: 'docs' | 'project' | 'epic' | 'feature' | 'directory' | 'file';
   status?: 'in_progress' | 'ready' | 'done' | 'changes';
   files?: FeatureFile[];
   entries?: TreeEntry[];
@@ -79,13 +79,56 @@ export const fetchNode = (path: string): Promise<NodeDescription> =>
 export const fetchDocument = (path: string): Promise<{ path: string; content: string }> =>
   fetch(`/api/document?path=${encodeURIComponent(path)}`).then((response) => readJson(response));
 
+export type DocLinkDirectory = {
+  path: string;
+  parent: string | null;
+  directories: string[];
+  links: { name: string; target: string }[];
+};
+
+export const fetchDocLinkDirectory = (
+  project: string,
+  path: string,
+): Promise<DocLinkDirectory> =>
+  fetch(
+    `/api/doc-links/directories?project=${encodeURIComponent(project)}&path=${encodeURIComponent(path)}`,
+  ).then((response) => readJson(response));
+
+export const createDocLink = (
+  project: string,
+  directory: string,
+): Promise<{ path: string; target: string }> =>
+  writeJson('/api/doc-links', {
+    method: 'POST',
+    body: JSON.stringify({ project, directory }),
+  });
+
+export const createEpic = (
+  project: string,
+  epicId: string,
+): Promise<{ path: string }> =>
+  writeJson('/api/epics', {
+    method: 'POST',
+    body: JSON.stringify({ project, epicId }),
+  });
+
+export const renameEpic = (path: string, epicId: string): Promise<{ path: string }> =>
+  writeJson('/api/epics/rename', {
+    method: 'POST',
+    body: JSON.stringify({ path, epicId }),
+  });
+
+export const deleteEpic = (path: string): Promise<{ path: string }> =>
+  writeJson(`/api/epics?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+
 export const createFeature = (
   project: string,
+  epic: string,
   featureId: string,
 ): Promise<{ path: string }> =>
   writeJson('/api/features', {
     method: 'POST',
-    body: JSON.stringify({ project, featureId }),
+    body: JSON.stringify({ project, epic, featureId }),
   });
 
 export const deleteFeature = (path: string): Promise<{ path: string }> =>

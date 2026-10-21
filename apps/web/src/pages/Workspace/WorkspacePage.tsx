@@ -6,12 +6,17 @@ import { ActionsMenu } from '../../shared/ActionsMenu';
 import {
   createAgent,
   copyAgents,
+  createDocLink,
+  createEpic,
   createFeature,
   createSubagent,
   deleteAgent,
+  deleteEpic,
   deleteSubagent,
   deleteFeature,
+  fetchDocLinkDirectory,
   renameAgent,
+  renameEpic,
   renameFeature,
   renameSubagent,
   fetchDocument,
@@ -19,6 +24,7 @@ import {
   fetchTree,
   publishProject,
   syncProject,
+  type DocLinkDirectory,
   type NodeDescription,
   type TreeEntry,
 } from '../../shared/api';
@@ -26,6 +32,7 @@ import { ConfirmModal } from '../../shared/ConfirmModal';
 import { Modal } from '../../shared/Modal';
 import { Toast } from '../../shared/Toast';
 import {
+  epicMatchesFilter,
   featureMatchesFilter,
   isFeatureFilterActive,
   isFeatureId,
@@ -187,6 +194,19 @@ export const WorkspacePage: FC<Props> = (props) => {
   const [copyError, setCopyError] = useState('');
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [publishMessage, setPublishMessage] = useState('');
+  const [epicNameFilter, setEpicNameFilter] = useState('');
+  const [docLinkOpen, setDocLinkOpen] = useState(false);
+  const [docLinkDir, setDocLinkDir] = useState<DocLinkDirectory | null>(null);
+  const [docLinkError, setDocLinkError] = useState('');
+  const [docLinkConfirm, setDocLinkConfirm] = useState(false);
+  const [addEpicOpen, setAddEpicOpen] = useState(false);
+  const [newEpicId, setNewEpicId] = useState('');
+  const [renameEpicOpen, setRenameEpicOpen] = useState(false);
+  const [renameEpicId, setRenameEpicId] = useState('');
+  const [renameEpicPath, setRenameEpicPath] = useState('');
+  const [confirmDeleteEpic, setConfirmDeleteEpic] = useState(false);
+  const [deleteFeaturePath, setDeleteFeaturePath] = useState<string | null>(null);
+  const [addFeatureEpicPath, setAddFeatureEpicPath] = useState('');
   const [featureNameFilter, setFeatureNameFilter] = useState('');
   const [featureStatusFilter, setFeatureStatusFilter] = useState<FeatureStatusFilter>('all');
   const [syncSeconds, setSyncSeconds] = useState(60);
@@ -216,6 +236,27 @@ export const WorkspacePage: FC<Props> = (props) => {
     nameQuery: featureNameFilter,
     status: featureStatusFilter,
   };
+
+  useEffect(() => {
+    if (isSettings || !treeRootPath || !isFeatureFilterActive(featureFilterQuery)) {
+      return;
+    }
+    const epics = cache[treeRootPath] ?? [];
+    for (const epic of epics) {
+      if (epic.kind !== 'dir' || !epicMatchesFilter(epic.name, epicNameFilter)) {
+        continue;
+      }
+      const epicPath = `${treeRootPath}/${epic.name}`;
+      if (cache[epicPath]) {
+        continue;
+      }
+      void fetchTree(epicPath).then((entries) => {
+        setCache((current) =>
+          current[epicPath] ? current : { ...current, [epicPath]: entries },
+        );
+      });
+    }
+  }, [cache, epicNameFilter, featureFilterQuery, isSettings, treeRootPath]);
 
   const loadNode = (path: string) => {
     setSelected(path);
@@ -468,25 +509,171 @@ export const WorkspacePage: FC<Props> = (props) => {
     node?.kind === 'feature' ? node.path : null,
   );
 
-  const submitAddFeature = () => {
+  const loadDocLinkDirectory = (path: string) => {
+    setDocLinkError('');
+    setDocLinkConfirm(false);
+    void fetchDocLinkDirectory(project, path)
+      .then((directory) => {
+        setDocLinkDir(directory);
+      })
+      .catch((reason: unknown) => {
+        setDocLinkError(reason instanceof Error ? reason.message : 'Не удалось открыть каталог');
+      });
+  };
+
+  const openDocLink = () => {
+    setDocLinkError('');
+    setDocLinkConfirm(false);
+    setDocLinkDir(null);
+    setDocLinkOpen(true);
+    loadDocLinkDirectory('');
+  };
+
+  const closeDocLink = () => {
+    setDocLinkOpen(false);
+    setDocLinkConfirm(false);
+    setDocLinkError('');
+  };
+
+  const submitDocLink = () => {
+    if (!project || !docLinkDir) {
+      return;
+    }
+    setDocLinkError('');
+    void createDocLink(project, docLinkDir.path)
+      .then(() => fetchDocLinkDirectory(project, docLinkDir.path))
+      .then((directory) => {
+        setDocLinkDir(directory);
+        setDocLinkConfirm(false);
+      })
+      .catch((reason: unknown) => {
+        setDocLinkConfirm(false);
+        setDocLinkError(reason instanceof Error ? reason.message : 'Не удалось добавить ссылку');
+      });
+  };
+
+  const closeAddEpic = () => {
+    setAddEpicOpen(false);
+    setNewEpicId('');
+  };
+
+  const submitAddEpic = () => {
     if (!project) {
       setError('Выберите проект');
       return;
     }
-    if (!isFeatureId(newFeatureId)) {
-      setError('Имя фичи — kebab-case');
+    if (!isFeatureId(newEpicId)) {
+      setError('Имя эпика — kebab-case');
       return;
     }
     setError('');
-    void createFeature(project, newFeatureId)
+    void createEpic(project, newEpicId)
       .then((result) => {
-        setAddFeatureOpen(false);
-        setNewFeatureId('');
+        closeAddEpic();
         refreshProjectTree(project);
         loadNode(result.path);
         setExpanded((current) => ({
           ...current,
           [result.path]: true,
+          [treeRootPath]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось создать эпик');
+      });
+  };
+
+  const openRenameEpic = (path: string, epicId: string) => {
+    setRenameEpicPath(path);
+    setRenameEpicId(epicId);
+    setError('');
+    setRenameEpicOpen(true);
+  };
+
+  const closeRenameEpic = () => {
+    setRenameEpicOpen(false);
+    setRenameEpicId('');
+    setRenameEpicPath('');
+  };
+
+  const submitRenameEpic = () => {
+    if (!renameEpicPath || !project) {
+      return;
+    }
+    const currentId = renameEpicPath.split('/').pop() ?? '';
+    if (renameEpicId === currentId) {
+      closeRenameEpic();
+      return;
+    }
+    if (!isFeatureId(renameEpicId)) {
+      setError('Имя эпика — kebab-case');
+      return;
+    }
+    setError('');
+    void renameEpic(renameEpicPath, renameEpicId)
+      .then((result) => {
+        closeRenameEpic();
+        refreshProjectTree(project);
+        loadNode(result.path);
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [treeRootPath]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось переименовать эпик');
+      });
+  };
+
+  const runDeleteEpic = () => {
+    if (!renameEpicPath && node?.kind !== 'epic') {
+      return;
+    }
+    const path = node?.kind === 'epic' ? node.path : '';
+    if (!path || !project) {
+      return;
+    }
+    setConfirmDeleteEpic(false);
+    void deleteEpic(path)
+      .then(() => {
+        refreshProjectTree(project);
+        loadNode(`docs/${project}`);
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось удалить эпик');
+      });
+  };
+
+  const openAddFeature = (epicPath: string) => {
+    setAddFeatureEpicPath(epicPath);
+    setNewFeatureId('');
+    setError('');
+    setAddFeatureOpen(true);
+  };
+
+  const submitAddFeature = () => {
+    if (!project || !addFeatureEpicPath) {
+      setError('Выберите эпик');
+      return;
+    }
+    const epicId = addFeatureEpicPath.split('/').pop() ?? '';
+    if (!isFeatureId(newFeatureId)) {
+      setError('Имя фичи — kebab-case');
+      return;
+    }
+    setError('');
+    void createFeature(project, epicId, newFeatureId)
+      .then((result) => {
+        setAddFeatureOpen(false);
+        setNewFeatureId('');
+        refreshProjectTree(project);
+        refreshFeatureTree(addFeatureEpicPath);
+        loadNode(result.path);
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [addFeatureEpicPath]: true,
           [treeRootPath]: true,
         }));
       })
@@ -525,11 +712,14 @@ export const WorkspacePage: FC<Props> = (props) => {
     void renameFeature(renameFeaturePath, renameFeatureId)
       .then((result) => {
         closeRenameFeature();
+        const epicPath = result.path.split('/').slice(0, -1).join('/');
         refreshProjectTree(project);
-        loadNode(result.path);
+        refreshFeatureTree(epicPath);
+        loadNode(epicPath);
         setExpanded((current) => ({
           ...current,
           [result.path]: true,
+          [epicPath]: true,
           [treeRootPath]: true,
         }));
       })
@@ -539,14 +729,18 @@ export const WorkspacePage: FC<Props> = (props) => {
   };
 
   const runDeleteFeature = () => {
-    if (!selectedFeaturePath || !project) {
+    const path = deleteFeaturePath ?? selectedFeaturePath;
+    if (!path || !project) {
       return;
     }
+    const epicPath = path.split('/').slice(0, -1).join('/');
     setConfirmDelete(false);
-    void deleteFeature(selectedFeaturePath)
+    setDeleteFeaturePath(null);
+    void deleteFeature(path)
       .then(() => {
         refreshProjectTree(project);
-        chooseProject(project);
+        refreshFeatureTree(epicPath);
+        loadNode(epicPath);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось удалить фичу');
@@ -898,6 +1092,14 @@ export const WorkspacePage: FC<Props> = (props) => {
           {!isSettings && (
             <>
               <label>
+                Эпик
+                <input
+                  className="toolbar-feature-filter-name"
+                  value={epicNameFilter}
+                  onChange={(event) => setEpicNameFilter(event.target.value)}
+                />
+              </label>
+              <label>
                 Фича
                 <input
                   className="toolbar-feature-filter-name"
@@ -982,7 +1184,8 @@ export const WorkspacePage: FC<Props> = (props) => {
                   ]
                 : [
                     { label: 'Настройки', href: '/settings' },
-                    { label: 'Добавить фичу', onClick: () => setAddFeatureOpen(true) },
+                    { label: 'Добавить эпик', onClick: () => setAddEpicOpen(true) },
+                    { label: 'Добавить ссылку на документацию', onClick: openDocLink },
                   ]
             }
           />
@@ -1029,6 +1232,113 @@ export const WorkspacePage: FC<Props> = (props) => {
           </button>
         </div>
       </Modal>
+      <Modal title="Добавить ссылку на документацию" open={docLinkOpen} onClose={closeDocLink}>
+        {docLinkConfirm ? (
+          <>
+            <p>
+              Добавить ссылку на документацию проекта {project} в {docLinkDir?.path}?
+            </p>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setDocLinkConfirm(false)}>
+                Отмена
+              </button>
+              <button type="button" className="primary" onClick={submitDocLink}>
+                Добавить
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="doc-link-path">{docLinkDir?.path ?? '…'}</p>
+            {docLinkDir?.parent ? (
+              <button type="button" onClick={() => loadDocLinkDirectory(docLinkDir.parent ?? '')}>
+                Вверх
+              </button>
+            ) : null}
+            {docLinkDir && docLinkDir.links.length > 0 ? (
+              <ul className="doc-link-links">
+                {docLinkDir.links.map((link) => (
+                  <li key={link.name}>
+                    {link.name} → {link.target}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="doc-link-dirs">
+              {docLinkDir?.directories.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() =>
+                    loadDocLinkDirectory(`${docLinkDir.path}/${name}`.replaceAll('//', '/'))
+                  }
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            {docLinkError ? <p className="error">{docLinkError}</p> : null}
+            <div className="modal-actions">
+              <button type="button" onClick={closeDocLink}>
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={!docLinkDir}
+                onClick={() => setDocLinkConfirm(true)}
+              >
+                Добавить
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
+      <Modal title="Добавить эпик" open={addEpicOpen} onClose={closeAddEpic}>
+        <label>
+          Имя (kebab-case)
+          <input value={newEpicId} onChange={(event) => setNewEpicId(event.target.value)} />
+        </label>
+        {error && addEpicOpen ? <p className="error">{error}</p> : null}
+        <div className="modal-actions">
+          <button type="button" onClick={closeAddEpic}>
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitAddEpic}>
+            Создать
+          </button>
+        </div>
+      </Modal>
+      <Modal
+        title="Переименовать эпик"
+        open={renameEpicOpen}
+        onClose={closeRenameEpic}
+      >
+        <label>
+          Имя (kebab-case)
+          <input
+            value={renameEpicId}
+            onChange={(event) => setRenameEpicId(event.target.value)}
+          />
+        </label>
+        {error && renameEpicOpen ? <p className="error">{error}</p> : null}
+        <div className="modal-actions">
+          <button type="button" onClick={closeRenameEpic}>
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitRenameEpic}>
+            Переименовать
+          </button>
+        </div>
+      </Modal>
+      <ConfirmModal
+        title="Удалить эпик"
+        message="Удалить эпик?"
+        confirmLabel="Удалить"
+        open={confirmDeleteEpic}
+        onClose={() => setConfirmDeleteEpic(false)}
+        onConfirm={runDeleteEpic}
+      />
       <Modal
         title="Добавить фичу"
         open={addFeatureOpen}
@@ -1044,6 +1354,7 @@ export const WorkspacePage: FC<Props> = (props) => {
             onChange={(event) => setNewFeatureId(event.target.value)}
           />
         </label>
+        {error && addFeatureOpen ? <p className="error">{error}</p> : null}
         <div className="modal-actions">
           <button
             type="button"
@@ -1209,6 +1520,8 @@ export const WorkspacePage: FC<Props> = (props) => {
               name={isSettings ? 'settings' : project}
               depth={0}
               hideRoot
+              filterMode={isSettings ? undefined : 'epics'}
+              epicNameQuery={isSettings ? '' : epicNameFilter}
               featureFilterQuery={isSettings ? undefined : featureFilterQuery}
               expanded={expanded}
               cache={cache}
@@ -1221,18 +1534,31 @@ export const WorkspacePage: FC<Props> = (props) => {
         </div>
       </aside>
       <section className="pane">
-        {error && !addAgentOpen && !addSubagentOpen && !renameSettingsOpen ? (
+        {error &&
+        !addAgentOpen &&
+        !addSubagentOpen &&
+        !renameSettingsOpen &&
+        !addEpicOpen &&
+        !addFeatureOpen &&
+        !renameEpicOpen ? (
           <p className="error">{error}</p>
         ) : null}
         <div className="sheet">
           {node && node.kind !== 'file' && (
             <DirectoryPane
               node={node}
+              epicNameQuery={isSettings ? '' : epicNameFilter}
               featureFilterQuery={isSettings ? { nameQuery: '', status: 'all' } : featureFilterQuery}
               onOpen={loadNode}
               onOpenFile={openFile}
+              onAddFeature={openAddFeature}
+              onRenameEpic={openRenameEpic}
+              onDeleteEpic={() => setConfirmDeleteEpic(true)}
               onRenameFeature={openRenameFeature}
-              onDeleteFeature={() => setConfirmDelete(true)}
+              onDeleteFeature={(path) => {
+                setDeleteFeaturePath(path);
+                setConfirmDelete(true);
+              }}
               onRenameAgent={openRenameAgent}
               onDeleteAgent={() => setConfirmDeleteAgent(true)}
               onAddSubagent={() => setAddSubagentOpen(true)}
@@ -1277,6 +1603,8 @@ type BranchProps = {
   name: string;
   depth: number;
   hideRoot?: boolean;
+  filterMode?: 'epics' | 'features';
+  epicNameQuery?: string;
   featureFilterQuery?: FeatureFilterQuery;
   status?: FeatureStatus;
   expanded: Record<string, boolean>;
@@ -1293,6 +1621,8 @@ const TreeBranch: FC<BranchProps> = (props) => {
     name,
     depth,
     hideRoot,
+    filterMode,
+    epicNameQuery,
     featureFilterQuery,
     status,
     expanded,
@@ -1305,14 +1635,36 @@ const TreeBranch: FC<BranchProps> = (props) => {
   const isOpen = hideRoot ? true : Boolean(expanded[path]);
   const entries = cache[path] ?? [];
   const listEntries =
-    hideRoot && featureFilterQuery
-      ? entries.filter((entry) =>
-          featureMatchesFilter(entry.name, entry.status, featureFilterQuery),
-        )
-      : entries;
+    filterMode === 'epics'
+      ? entries.filter((entry) => {
+          if (!epicMatchesFilter(entry.name, epicNameQuery ?? '')) {
+            return false;
+          }
+          if (!featureFilterQuery || !isFeatureFilterActive(featureFilterQuery)) {
+            return true;
+          }
+          const children = cache[childPath(path, entry.name)];
+          if (!children) {
+            return true;
+          }
+          return children.some(
+            (child) =>
+              child.kind === 'dir' &&
+              featureMatchesFilter(child.name, child.status, featureFilterQuery),
+          );
+        })
+      : filterMode === 'features' && featureFilterQuery
+        ? entries.filter((entry) =>
+            entry.kind === 'dir'
+              ? featureMatchesFilter(entry.name, entry.status, featureFilterQuery)
+              : true,
+          )
+        : entries;
+  const epicFilterActive = (epicNameQuery ?? '').trim() !== '';
   const showFilterEmpty =
-    Boolean(hideRoot && featureFilterQuery) &&
-    isFeatureFilterActive(featureFilterQuery ?? { nameQuery: '', status: 'all' }) &&
+    filterMode === 'epics' &&
+    (epicFilterActive ||
+      isFeatureFilterActive(featureFilterQuery ?? { nameQuery: '', status: 'all' })) &&
     entries.length > 0 &&
     listEntries.length === 0;
   const range = visibleRange(listEntries.length, 0, 28, 480);
@@ -1329,6 +1681,8 @@ const TreeBranch: FC<BranchProps> = (props) => {
             path={next}
             name={entry.name}
             depth={childDepth}
+            filterMode={filterMode === 'epics' ? 'features' : undefined}
+            featureFilterQuery={filterMode === 'epics' ? featureFilterQuery : undefined}
             status={entry.status}
             expanded={expanded}
             cache={cache}
@@ -1439,11 +1793,15 @@ const SettingsEntityHeading: FC<SettingsEntityHeadingProps> = (props) => {
 
 type PaneProps = {
   node: NodeDescription;
+  epicNameQuery: string;
   featureFilterQuery: FeatureFilterQuery;
   onOpen: (path: string) => void;
   onOpenFile: (path: string) => void;
+  onAddFeature: (epicPath: string) => void;
+  onRenameEpic: (path: string, epicId: string) => void;
+  onDeleteEpic: () => void;
   onRenameFeature: (path: string, featureId: string) => void;
-  onDeleteFeature: () => void;
+  onDeleteFeature: (path: string) => void;
   onRenameAgent: () => void;
   onDeleteAgent: () => void;
   onAddSubagent: () => void;
@@ -1454,9 +1812,13 @@ type PaneProps = {
 const DirectoryPane: FC<PaneProps> = (props) => {
   const {
     node,
+    epicNameQuery,
     featureFilterQuery,
     onOpen,
     onOpenFile,
+    onAddFeature,
+    onRenameEpic,
+    onDeleteEpic,
     onRenameFeature,
     onDeleteFeature,
     onRenameAgent,
@@ -1467,12 +1829,13 @@ const DirectoryPane: FC<PaneProps> = (props) => {
   } = props;
   const entries =
     node.kind === 'project'
-      ? (node.entries ?? []).filter((entry) =>
-          featureMatchesFilter(entry.name, entry.status, featureFilterQuery),
-        )
-      : (node.entries ?? []);
-  const featureId =
-    node.kind === 'feature' ? (node.path.split('/').pop() ?? '') : '';
+      ? (node.entries ?? []).filter((entry) => epicMatchesFilter(entry.name, epicNameQuery))
+      : node.kind === 'epic'
+        ? (node.entries ?? []).filter((entry) =>
+            featureMatchesFilter(entry.name, entry.status, featureFilterQuery),
+          )
+        : (node.entries ?? []);
+  const epicId = node.kind === 'epic' ? (node.path.split('/').pop() ?? '') : '';
   const agentName = isSettingsAgentPath(node.path) ? (node.path.split('/').pop() ?? '') : '';
   const subagentName = isSettingsSubagentPath(node.path)
     ? (node.path.split('/').pop() ?? '')
@@ -1494,18 +1857,20 @@ const DirectoryPane: FC<PaneProps> = (props) => {
           onDelete={onDeleteSubagent}
         />
       )}
-      {node.kind === 'feature' && (
+      {node.kind === 'epic' && (
         <div className="feature-heading">
-          <span className="feature-heading-name">{featureId}</span>
-          <button
-            type="button"
-            onClick={() => onRenameFeature(node.path, featureId)}
-          >
-            Редактировать
-          </button>
-          <button type="button" onClick={onDeleteFeature}>
-            Удалить
-          </button>
+          <span className="feature-heading-name">{epicId}</span>
+          <span className="feature-heading-actions">
+            <button type="button" onClick={() => onAddFeature(node.path)}>
+              Добавить фичу
+            </button>
+            <button type="button" onClick={() => onRenameEpic(node.path, epicId)}>
+              Переименовать
+            </button>
+            <button type="button" onClick={onDeleteEpic}>
+              Удалить
+            </button>
+          </span>
         </div>
       )}
       {node.kind === 'feature' && node.status && (
@@ -1526,6 +1891,19 @@ const DirectoryPane: FC<PaneProps> = (props) => {
               >
                 {entry.name}
               </button>
+              {node.kind === 'epic' && entry.kind === 'dir' ? (
+                <span className="file-row-actions">
+                  <button
+                    type="button"
+                    onClick={() => onRenameFeature(dirPath, entry.name)}
+                  >
+                    Редактировать
+                  </button>
+                  <button type="button" onClick={() => onDeleteFeature(dirPath)}>
+                    Удалить
+                  </button>
+                </span>
+              ) : null}
               {entry.status ? (
                 <span className={statusTagClass(entry.status)}>{statusLabel(entry.status)}</span>
               ) : null}

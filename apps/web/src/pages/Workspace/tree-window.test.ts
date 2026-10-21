@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   displayDocumentPath,
+  epicMatchesFilter,
   featureMatchesFilter,
+  resolveFeaturePath,
   resolveRelative,
   statusLabel,
   visibleRange,
@@ -53,6 +55,24 @@ test('фильтр фичи по имени и статусу', () => {
   assert.equal(featureMatchesFilter('invoices', 'ready', { nameQuery: '  inv  ', status: 'all' }), true);
 });
 
+test('фильтр эпика по имени', () => {
+  assert.equal(epicMatchesFilter('main', ''), true);
+  assert.equal(epicMatchesFilter('main', 'ma'), true);
+  assert.equal(epicMatchesFilter('main', '  MA '), true);
+  assert.equal(epicMatchesFilter('checkout', 'pay'), false);
+});
+
+test('resolveFeaturePath возвращает эпик и фичу', () => {
+  assert.equal(
+    resolveFeaturePath('docs/payments/main/order-list/in-progress/analyst.md', null),
+    'docs/payments/main/order-list',
+  );
+  assert.equal(
+    resolveFeaturePath('docs/payments/order-list/in-progress/analyst.md', null),
+    null,
+  );
+});
+
 test('displayDocumentPath убирает docs, in-progress, ready-to-implement и done', () => {
   assert.equal(
     displayDocumentPath('docs/payments/order-list/in-progress/analyst.md'),
@@ -61,5 +81,9 @@ test('displayDocumentPath убирает docs, in-progress, ready-to-implement �
   assert.equal(
     displayDocumentPath('docs/payments/order-list/done/analyst.md'),
     'payments/order-list/analyst.md',
+  );
+  assert.equal(
+    displayDocumentPath('docs/payments/main/order-list/in-progress/analyst.md'),
+    'payments/main/order-list/analyst.md',
   );
 });
