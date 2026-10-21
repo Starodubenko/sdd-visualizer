@@ -3,20 +3,14 @@ import { createRequire } from 'module';
 import { join } from 'path';
 import type { Response } from 'express';
 import { DocumentsService } from '../documents/documents.service';
-import { ProjectsService } from '../projects/projects.service';
 
-export type PageData =
-  | {
-      page: 'workspace';
-      workspace: {
-        projects: string[];
-        featureEntries: { name: string; kind: 'dir' | 'file' }[];
-      };
-    }
-  | {
-      page: 'admin';
-      admin: { projects: { name: string; remote: string; hasToken: boolean }[] };
-    };
+export type PageData = {
+  page: 'workspace';
+  workspace: {
+    projects: string[];
+    featureEntries: { name: string; kind: 'dir' | 'file' }[];
+  };
+};
 
 type ServerEntry = {
   renderPage: (response: Response, data: PageData) => void;
@@ -24,10 +18,7 @@ type ServerEntry = {
 
 @Injectable()
 export class SsrService {
-  constructor(
-    private readonly documents: DocumentsService,
-    private readonly projects: ProjectsService,
-  ) {}
+  constructor(private readonly documents: DocumentsService) {}
 
   async workspaceData(): Promise<PageData> {
     const docsEntries = await this.documents.list('docs').catch(() => []);
@@ -45,11 +36,6 @@ export class SsrService {
         featureEntries,
       },
     };
-  }
-
-  async adminData(): Promise<PageData> {
-    const projects = await this.projects.listPublic();
-    return { page: 'admin', admin: { projects } };
   }
 
   async render(response: Response, data: PageData): Promise<void> {

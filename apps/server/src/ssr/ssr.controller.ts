@@ -11,10 +11,4 @@ export class SsrController {
     const data = await this.ssr.workspaceData();
     await this.ssr.render(response, data);
   }
-
-  @Get('admin')
-  async admin(@Res() response: Response) {
-    const data = await this.ssr.adminData();
-    await this.ssr.render(response, data);
-  }
 }

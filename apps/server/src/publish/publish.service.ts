@@ -1,31 +1,23 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { ProjectsService } from '../projects/projects.service';
+import { copyDocsProject } from './docs-tree-sync';
 
 const exec = promisify(execFile);
-
-const withToken = (remote: string, token: string): string => {
-  if (!token || !/^https?:\/\//.test(remote)) {
-    return remote;
-  }
-  const url = new URL(remote);
-  url.username = 'x-access-token';
-  url.password = token;
-  return url.toString();
-};
 
 @Injectable()
 export class PublishService {
   constructor(
-    private readonly root: string,
-    private readonly projects: ProjectsService,
+    private readonly workspaceRoot: string,
+    private readonly gitRoot: string,
   ) {}
 
   async publish(project: string): Promise<{ project: string }> {
-    const secret = await this.projects.getSecret(project);
-    if (!secret?.remote) {
-      throw new BadRequestException('У проекта нет адреса репозитория');
+    if (!(await this.hasOrigin())) {
+      throw new BadRequestException('У репозитория нет origin');
+    }
+    if (this.workspaceRoot !== this.gitRoot) {
+      copyDocsProject(this.workspaceRoot, this.gitRoot, project);
     }
     const docsPath = `docs/${project}`;
     await this.git(['add', '--', docsPath]);
@@ -41,18 +33,25 @@ export class PublishService {
         `Publish ${project}`,
       ]);
     }
-    const remote = withToken(secret.remote, secret.token);
     try {
-      await this.git(['push', remote, 'HEAD:main']);
+      await this.git(['push', 'origin', 'HEAD']);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка публикации';
-      const safe = secret.token ? message.replaceAll(secret.token, '***') : message;
-      throw new BadRequestException(safe);
+      throw new BadRequestException(message);
     }
     return { project };
   }
 
+  private async hasOrigin(): Promise<boolean> {
+    try {
+      await this.git(['remote', 'get-url', 'origin']);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private git(args: string[]) {
-    return exec('git', args, { cwd: this.root });
+    return exec('git', args, { cwd: this.gitRoot });
   }
 }

@@ -447,7 +447,6 @@ export const WorkspacePage: FC<Props> = (props) => {
             ]}
           />
           <ThemeSwitch />
-          <a href="/admin">Админка</a>
         </div>
       </header>
       <Modal

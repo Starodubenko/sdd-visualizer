@@ -2,44 +2,30 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { clearTreeCache } from '../documents/tree';
-import { ProjectsService } from '../projects/projects.service';
+import { copyDocsProject, docsProjectTreesEqual } from './docs-tree-sync';
 
 const exec = promisify(execFile);
-
-const withToken = (remote: string, token: string): string => {
-  if (!token || !/^https?:\/\//.test(remote)) {
-    return remote;
-  }
-  const url = new URL(remote);
-  url.username = 'x-access-token';
-  url.password = token;
-  return url.toString();
-};
 
 @Injectable()
 export class SyncService {
   constructor(
-    private readonly root: string,
-    private readonly projects: ProjectsService,
+    private readonly workspaceRoot: string,
+    private readonly gitRoot: string,
   ) {}
 
   async sync(project: string): Promise<{ project: string; updated: boolean }> {
-    const secret = await this.projects.getSecret(project);
-    if (!secret?.remote) {
-      throw new BadRequestException('У проекта нет адреса репозитория');
+    if (!(await this.hasOrigin())) {
+      throw new BadRequestException('У репозитория нет origin');
     }
     const docsPath = `docs/${project}`;
-    const porcelain = await this.git(['status', '--porcelain', '--', docsPath]);
-    if (porcelain.stdout.trim()) {
+    if (await this.isDocsDirty(project, docsPath)) {
       throw new BadRequestException('Сначала опубликуйте локальные изменения');
     }
-    const remote = withToken(secret.remote, secret.token);
     try {
-      await this.git(['fetch', remote, 'main']);
+      await this.git(['fetch', 'origin', 'main']);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка синхронизации';
-      const safe = secret.token ? message.replaceAll(secret.token, '***') : message;
-      throw new BadRequestException(safe);
+      throw new BadRequestException(message);
     }
     const mergeBase = await this.git(['merge-base', 'HEAD', 'FETCH_HEAD']).catch(() => null);
     if (!mergeBase?.stdout.trim()) {
@@ -56,6 +42,9 @@ export class SyncService {
     }
     await this.git(['restore', '--source=FETCH_HEAD', '--staged', '--worktree', '--', docsPath]);
     await this.git(['checkout', 'FETCH_HEAD', '--', docsPath]);
+    if (this.workspaceRoot !== this.gitRoot) {
+      copyDocsProject(this.gitRoot, this.workspaceRoot, project);
+    }
     const afterRestore = await this.git(['status', '--porcelain', '--', docsPath]);
     if (afterRestore.stdout.trim()) {
       await this.git([
@@ -72,6 +61,26 @@ export class SyncService {
     }
     clearTreeCache();
     return { project, updated: true };
+  }
+
+  private async isDocsDirty(project: string, docsPath: string): Promise<boolean> {
+    const porcelain = await this.git(['status', '--porcelain', '--', docsPath]);
+    if (porcelain.stdout.trim()) {
+      return true;
+    }
+    if (this.workspaceRoot === this.gitRoot) {
+      return false;
+    }
+    return !docsProjectTreesEqual(this.workspaceRoot, this.gitRoot, project);
+  }
+
+  private async hasOrigin(): Promise<boolean> {
+    try {
+      await this.git(['remote', 'get-url', 'origin']);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async localUserChangedSince(
@@ -100,6 +109,6 @@ export class SyncService {
   }
 
   private git(args: string[]) {
-    return exec('git', args, { cwd: this.root, maxBuffer: 10 * 1024 * 1024 });
+    return exec('git', args, { cwd: this.gitRoot, maxBuffer: 10 * 1024 * 1024 });
   }
 }

@@ -20,26 +20,13 @@ export type NodeDescription = {
   entries?: TreeEntry[];
 };
 
-export type PublicProject = {
-  name: string;
-  remote: string;
-  hasToken: boolean;
+export type PageData = {
+  page: 'workspace';
+  workspace: {
+    projects: string[];
+    featureEntries: TreeEntry[];
+  };
 };
-
-export type PageData =
-  | {
-      page: 'workspace';
-      workspace: {
-        projects: string[];
-        featureEntries: TreeEntry[];
-      };
-    }
-  | {
-      page: 'admin';
-      admin: {
-        projects: PublicProject[];
-      };
-    };
 
 const errorMessageFromBody = (text: string): string => {
   if (!text) {
@@ -82,12 +69,6 @@ export const fetchNode = (path: string): Promise<NodeDescription> =>
 
 export const fetchDocument = (path: string): Promise<{ path: string; content: string }> =>
   fetch(`/api/document?path=${encodeURIComponent(path)}`).then((response) => readJson(response));
-
-export const fetchProjects = (): Promise<PublicProject[]> =>
-  fetch('/api/projects').then((response) => readJson(response));
-
-export const fetchProject = (name: string): Promise<PublicProject> =>
-  fetch(`/api/projects/${encodeURIComponent(name)}`).then((response) => readJson(response));
 
 export const createFeature = (
   project: string,
@@ -132,14 +113,4 @@ export const syncProject = (
   writeJson('/api/sync', {
     method: 'POST',
     body: JSON.stringify({ project }),
-  });
-
-export const saveProject = (
-  name: string,
-  remote: string,
-  token: string,
-): Promise<PublicProject> =>
-  writeJson(`/api/projects/${encodeURIComponent(name)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ remote, token }),
   });
