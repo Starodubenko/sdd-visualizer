@@ -607,3 +607,67 @@ test('renameSettingsAgent отклоняет пустое nextName', async () =>
       error instanceof BadRequestException && error.message === 'Имя агента — kebab-case',
   );
 });
+
+test('copySettingsAgents копирует каталог с именем проекта и сабагента', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await documents.createSettingsAgent('payments', 'review');
+  await documents.createSettingsSubagent('payments', 'review', 'context');
+  const result = await documents.copySettingsAgents('billing', 'payments', ['review']);
+  assert.deepEqual(result.paths, ['docs/billing/settings/review-payments']);
+  const template = await readFile(
+    join(root, 'docs/billing/settings/review-payments/template.md'),
+    'utf8',
+  );
+  assert.match(template, /role: review-payments/);
+  await stat(join(root, 'docs/billing/settings/review-payments/context/agent.md'));
+  const parentAgent = await readFile(
+    join(root, 'docs/billing/settings/review-payments/agent.md'),
+    'utf8',
+  );
+  assert.match(parentAgent, /settings\/review-payments\/context\//);
+  const billingAfter = await readFile(
+    join(root, 'docs/billing/settings/orchestrator.md'),
+    'utf8',
+  );
+  assert.match(billingAfter, /\| `review-payments\.md` \| `settings\/review-payments\/` \|/);
+  assert.match(billingAfter, /\| `analyst\.md` \| `settings\/analyst\/` \|/);
+  await stat(join(root, 'docs/payments/settings/review'));
+  await assert.rejects(() => stat(join(root, 'docs/billing/settings/review')));
+});
+
+test('copySettingsAgents не копирует повторно ту же директорию', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const analystBefore = await readFile(
+    join(root, 'docs/billing/settings/analyst/template.md'),
+    'utf8',
+  );
+  await documents.copySettingsAgents('billing', 'payments', ['analyst']);
+  await assert.rejects(
+    () => documents.copySettingsAgents('billing', 'payments', ['analyst']),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Агент уже существует',
+  );
+  const analystAfter = await readFile(
+    join(root, 'docs/billing/settings/analyst/template.md'),
+    'utf8',
+  );
+  assert.equal(analystAfter, analystBefore);
+  await stat(join(root, 'docs/billing/settings/analyst-payments'));
+});
+
+test('copySettingsAgents отклоняет тот же проект и пустой список', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.copySettingsAgents('payments', 'payments', ['analyst']),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Выберите другой проект',
+  );
+  await assert.rejects(
+    () => documents.copySettingsAgents('billing', 'payments', []),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Выберите агента',
+  );
+});

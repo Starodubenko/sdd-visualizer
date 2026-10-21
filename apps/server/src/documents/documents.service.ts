@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
+import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import { basename, dirname, join } from 'path';
 import { featureStatus, type FeatureFile } from './feature-status';
 import {
@@ -373,6 +373,122 @@ export class DocumentsService {
     );
     clearTreeCache();
     return { path: this.settingsTreePath(project, name) };
+  }
+
+  async copySettingsAgents(
+    target: string,
+    source: string,
+    names: string[],
+  ): Promise<{ paths: string[] }> {
+    if (!Array.isArray(names) || names.length === 0) {
+      throw new BadRequestException('Выберите агента');
+    }
+    if (source === target) {
+      throw new BadRequestException('Выберите другой проект');
+    }
+    for (const name of names) {
+      if (!isFeatureId(name)) {
+        throw new BadRequestException('Имя агента — kebab-case');
+      }
+    }
+    const unique = [...new Set(names)];
+    const sourceDir = await this.projectSettingsDir(source);
+    const targetDir = await this.projectSettingsDir(target);
+    const targetOrchestratorPath = join(targetDir, 'orchestrator.md');
+    const targetOrchestratorInfo = await stat(targetOrchestratorPath).catch(() => null);
+    if (!targetOrchestratorInfo?.isFile()) {
+      throw new BadRequestException('Нет оркестратора');
+    }
+    const sourceOrchestrator = await readFile(join(sourceDir, 'orchestrator.md'), 'utf8').catch(
+      () => '',
+    );
+    const targetOrchestrator = await readFile(targetOrchestratorPath, 'utf8');
+    const copies = unique.map((name) => ({ name, nextName: `${name}-${source}` }));
+    for (const { name, nextName } of copies) {
+      if (!isFeatureId(nextName)) {
+        throw new BadRequestException('Имя агента — kebab-case');
+      }
+      const fromInfo = await stat(join(sourceDir, name)).catch(() => null);
+      if (!fromInfo?.isDirectory()) {
+        throw new NotFoundException('Агент не найден');
+      }
+      const toInfo = await stat(join(targetDir, nextName)).catch(() => null);
+      if (toInfo || this.orchestratorAgentRow(targetOrchestrator, nextName)) {
+        throw new BadRequestException('Агент уже существует');
+      }
+    }
+    let nextOrchestrator = targetOrchestrator;
+    const paths: string[] = [];
+    for (const { name, nextName } of copies) {
+      const copiedDir = join(targetDir, nextName);
+      await cp(join(sourceDir, name), copiedDir, { recursive: true });
+      await this.rewriteCopiedAgent(copiedDir, name, nextName);
+      const extension = await this.copiedAgentExtension(
+        sourceOrchestrator,
+        name,
+        copiedDir,
+      );
+      const row = `| \`${nextName}${extension}\` | \`settings/${nextName}/\` |`;
+      nextOrchestrator = this.appendOrchestratorRow(nextOrchestrator, row);
+      paths.push(this.settingsTreePath(target, nextName));
+    }
+    await writeFile(targetOrchestratorPath, nextOrchestrator, 'utf8');
+    clearTreeCache();
+    return { paths };
+  }
+
+  private async rewriteCopiedAgent(
+    copiedDir: string,
+    name: string,
+    nextName: string,
+  ): Promise<void> {
+    const pathPrefix = `settings/${name}/`;
+    const nextPathPrefix = `settings/${nextName}/`;
+    const fileToken = `\`${name}.md\``;
+    const nextFileToken = `\`${nextName}.md\``;
+    await this.walkSettingsFiles(copiedDir, async (filePath) => {
+      const content = await readFile(filePath, 'utf8');
+      let next = content.replaceAll(pathPrefix, nextPathPrefix).replaceAll(fileToken, nextFileToken);
+      if (filePath === join(copiedDir, 'template.md')) {
+        const lines = next.split('\n');
+        next = lines
+          .map((line) => (line === `role: ${name}` ? `role: ${nextName}` : line))
+          .join('\n');
+      }
+      if (next !== content) {
+        await writeFile(filePath, next, 'utf8');
+      }
+    });
+  }
+
+  private async copiedAgentExtension(
+    orchestrator: string,
+    name: string,
+    agentDir: string,
+  ): Promise<string> {
+    const row = this.orchestratorAgentRow(orchestrator, name);
+    const fileCell = row?.match(/^\|\s*`([^`]+)`\s*\|/);
+    if (fileCell) {
+      const dotIndex = fileCell[1].lastIndexOf('.');
+      if (dotIndex >= 0) {
+        return fileCell[1].slice(dotIndex);
+      }
+    }
+    const files = await readdir(agentDir);
+    const templateName = files.find((fileName) => fileName.startsWith('template.'));
+    const extension = templateName ? templateName.slice('template.'.length) : 'md';
+    return `.${extension}`;
+  }
+
+  private orchestratorAgentRow(content: string, name: string): string | null {
+    const cell = `\`settings/${name}/\``;
+    const line = content.split('\n').find((entry) => {
+      if (!entry.startsWith('|')) {
+        return false;
+      }
+      return entry.split('|').some((part) => part.trim() === cell);
+    });
+    return line ?? null;
   }
 
   async renameSettingsAgent(

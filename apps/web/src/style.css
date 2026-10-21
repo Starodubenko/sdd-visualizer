@@ -961,6 +961,26 @@ html[data-theme='dark'] .modal-backdrop { background: #00000073; }
 .modal h2 { margin: 0; font-size: 16px; }
 .modal p { margin: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.copy-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+}
+.copy-agent-list label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.copy-agent-list input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
 .modal textarea { min-height: 240px; }
 .publish-preview {
   white-space: pre;

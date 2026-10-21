@@ -52,6 +52,12 @@ class SettingsAgentBody {
   name = '';
 }
 
+class CopySettingsAgentsBody {
+  target = '';
+  source = '';
+  names: string[] = [];
+}
+
 class SettingsSubagentBody {
   project = '';
   parent = '';
@@ -133,6 +139,11 @@ export class DocumentsController {
   @Post('settings/agents')
   createSettingsAgent(@Body() body: SettingsAgentBody) {
     return this.documents.createSettingsAgent(body.project, body.name);
+  }
+
+  @Post('settings/agents/copy')
+  copySettingsAgents(@Body() body: CopySettingsAgentsBody) {
+    return this.documents.copySettingsAgents(body.target, body.source, body.names);
   }
 
   @Delete('settings/agents')

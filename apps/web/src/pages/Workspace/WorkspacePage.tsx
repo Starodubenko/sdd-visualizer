@@ -5,6 +5,7 @@ import { ThemeSwitch } from '../../features/theme/ThemeSwitch';
 import { ActionsMenu } from '../../shared/ActionsMenu';
 import {
   createAgent,
+  copyAgents,
   createFeature,
   createSubagent,
   deleteAgent,
@@ -179,6 +180,11 @@ export const WorkspacePage: FC<Props> = (props) => {
   const [renameSettingsName, setRenameSettingsName] = useState('');
   const [renameSettingsParent, setRenameSettingsParent] = useState('');
   const [renameSettingsError, setRenameSettingsError] = useState('');
+  const [copyAgentsOpen, setCopyAgentsOpen] = useState(false);
+  const [copySource, setCopySource] = useState('');
+  const [copyAgentOptions, setCopyAgentOptions] = useState<string[]>([]);
+  const [copyNames, setCopyNames] = useState<string[]>([]);
+  const [copyError, setCopyError] = useState('');
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [publishMessage, setPublishMessage] = useState('');
   const [featureNameFilter, setFeatureNameFilter] = useState('');
@@ -801,6 +807,65 @@ export const WorkspacePage: FC<Props> = (props) => {
       });
   };
 
+  const loadCopyAgentOptions = (sourceName: string) => {
+    setCopySource(sourceName);
+    setCopyNames([]);
+    setCopyError('');
+    if (!sourceName) {
+      setCopyAgentOptions([]);
+      return;
+    }
+    void fetchTree(settingsRoot(sourceName))
+      .then((entries) => {
+        setCopyAgentOptions(
+          entries.filter((entry) => entry.kind === 'dir').map((entry) => entry.name),
+        );
+      })
+      .catch((reason: unknown) => {
+        setCopyAgentOptions([]);
+        setCopyError(reason instanceof Error ? reason.message : 'Не удалось прочитать агентов');
+      });
+  };
+
+  const openCopyAgents = () => {
+    const sourceName = projects.find((name) => name !== project) ?? '';
+    setCopyAgentsOpen(true);
+    loadCopyAgentOptions(sourceName);
+  };
+
+  const closeCopyAgents = () => {
+    setCopyAgentsOpen(false);
+    setCopyNames([]);
+    setCopyError('');
+  };
+
+  const toggleCopyName = (name: string) => {
+    setCopyNames((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
+  };
+
+  const submitCopyAgents = () => {
+    if (!copySource || copySource === project) {
+      setCopyError('Выберите другой проект');
+      return;
+    }
+    if (copyNames.length === 0) {
+      setCopyError('Выберите агента');
+      return;
+    }
+    setCopyError('');
+    void copyAgents(project, copySource, copyNames)
+      .then(() => {
+        closeCopyAgents();
+        refreshSettingsTree();
+        loadNode(settingsRoot(project));
+      })
+      .catch((reason: unknown) => {
+        setCopyError(reason instanceof Error ? reason.message : 'Не удалось скопировать агентов');
+      });
+  };
+
   const chooseProject = (name: string) => {
     setProject(name);
     const path = isSettings ? settingsRoot(name) : `docs/${name}`;
@@ -818,7 +883,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       {toast && <Toast kind={toast.kind} message={toast.message} />}
       <header className="toolbar">
         <div className="toolbar-start">
-          <strong>Визуализатор</strong>
+          <strong>{isSettings ? 'Визуализатор: Настройки' : 'Визуализатор: Документация'}</strong>
           <label>
             Проект
             <select value={project} onChange={(event) => chooseProject(event.target.value)}>
@@ -913,6 +978,7 @@ export const WorkspacePage: FC<Props> = (props) => {
                 ? [
                     { label: 'Документация', href: '/' },
                     { label: 'Добавить Агента', onClick: () => setAddAgentOpen(true) },
+                    { label: 'Скопировать агентов', onClick: openCopyAgents },
                   ]
                 : [
                     { label: 'Настройки', href: '/settings' },
@@ -922,6 +988,47 @@ export const WorkspacePage: FC<Props> = (props) => {
           />
         </div>
       </header>
+      <Modal title="Скопировать агентов" open={copyAgentsOpen} onClose={closeCopyAgents}>
+        <label>
+          Проект
+          <select
+            value={copySource}
+            onChange={(event) => loadCopyAgentOptions(event.target.value)}
+          >
+            {projects.filter((name) => name !== project).length === 0 && (
+              <option value="">Нет проектов</option>
+            )}
+            {projects
+              .filter((name) => name !== project)
+              .map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <div className="copy-agent-list">
+          {copyAgentOptions.map((name) => (
+            <label key={name}>
+              <input
+                type="checkbox"
+                checked={copyNames.includes(name)}
+                onChange={() => toggleCopyName(name)}
+              />
+              {copySource ? `${name}-${copySource}` : name}
+            </label>
+          ))}
+        </div>
+        {copyError ? <p className="error">{copyError}</p> : null}
+        <div className="modal-actions">
+          <button type="button" onClick={closeCopyAgents}>
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitCopyAgents}>
+            Скопировать
+          </button>
+        </div>
+      </Modal>
       <Modal
         title="Добавить фичу"
         open={addFeatureOpen}

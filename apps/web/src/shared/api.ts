@@ -91,6 +91,16 @@ export const createFeature = (
 export const deleteFeature = (path: string): Promise<{ path: string }> =>
   writeJson(`/api/features?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
 
+export const copyAgents = (
+  target: string,
+  source: string,
+  names: string[],
+): Promise<{ paths: string[] }> =>
+  writeJson('/api/settings/agents/copy', {
+    method: 'POST',
+    body: JSON.stringify({ target, source, names }),
+  });
+
 export const createAgent = (project: string, name: string): Promise<{ path: string }> =>
   writeJson('/api/settings/agents', {
     method: 'POST',
