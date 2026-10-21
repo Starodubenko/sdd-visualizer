@@ -1,0 +1,13 @@
+{
+  "name": "sdd-visualizer",
+  "private": true,
+  "workspaces": [
+    "apps/server",
+    "apps/web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @sdd/web && npm run build -w @sdd/server",
+    "test": "npm run test -w @sdd/web && npm run test -w @sdd/server",
+    "start:mock": "npm run build && node scripts/start-mock.mjs"
+  }
+}

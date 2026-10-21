@@ -1,0 +1,39 @@
+---
+description: Keep React table column definition order consistent when adding or removing columns
+globs: "**/*Column*.tsx"
+alwaysApply: false
+---
+
+# Table Column Ordinals
+
+Column **display order** is the order of entries in the React column definition (array order or the order columns are declared in JSX). There is no separate numeric ordinal field.
+
+## When adding a column
+
+1. Insert the column definition at the intended index in the column list (or between sibling column components).
+2. Ensure headers, cells, and any width/accessor keys stay aligned with that single ordered list.
+
+```tsx
+// ❌ BAD — column added only in the header row, not in the body cell list
+const columns = [
+  { id: "name", header: "Name", cell: NameCell },
+  { id: "status", header: "Status", cell: StatusCell },
+];
+// ...tbody maps a different set of cells
+
+// ✅ GOOD — one ordered list drives header and body
+const columns = [
+  { id: "name", header: "Name", cell: NameCell },
+  { id: "segment", header: "Segment", cell: SegmentCell },
+  { id: "amount", header: "Amount", cell: AmountCell },
+];
+```
+
+## When removing or moving a column
+
+Update the same column definition list: remove the entry or reorder the array. Keep filter/sort keys in sync if the table uses them.
+
+## Do not
+
+- Maintain a duplicate ordering mechanism that can drift from the React column list.
+- Add a new column in one file without updating the paired column definition used for rendering.

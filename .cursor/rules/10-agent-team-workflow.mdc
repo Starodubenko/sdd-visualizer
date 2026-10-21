@@ -1,0 +1,8 @@
+---
+description: Orchestrator workflow for planned multi-step tasks in this repository
+alwaysApply: true
+---
+
+# Agent Team Workflow
+
+A new task is planned in this chat first. This chat stays the orchestrator. Implementation steps run only as Composer 2.5 subagents (`model`: `composer-2.5-fast`). After each subagent, this chat validates the diff and the step checks before the next step. See `15-agent-complete-plan.mdc`.

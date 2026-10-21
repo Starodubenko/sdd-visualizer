@@ -1,0 +1,63 @@
+---
+description: Keep focused units and tests local; avoid convenience barrels
+alwaysApply: true
+---
+
+# Colocated Units and Tests
+
+## Goal
+
+Keep a **focused unit** (Nest service method group, TypeORM repository adapter, pure helper, SSR route handler slice, or a single React component + hook bundle) and **all tests for that unit** in **one dedicated subdirectory**, so navigation and reviews stay local.
+
+## Required layout
+
+- **One folder per unit** whose name matches the unit using the existing app repo convention for that layer.
+- **Implementation** and **tests** live **together** in that folder:
+    - `*.ts` / `*.tsx` — production code
+    - `*.spec.ts`, `*.test.ts` — tests for that folder only when the project standard permits.
+
+Example (Nest):
+
+```text
+apps/server/src/orders/
+  orders.service.ts
+  orders.service.spec.ts
+  dto/
+    create-order.dto.ts
+```
+
+Example (React page unit):
+
+```text
+apps/web/src/pages/OrderList/
+  OrderListPage.tsx
+  OrderListPage.test.tsx
+  useOrderListColumns.tsx
+```
+
+Example (React feature):
+
+```text
+apps/web/src/features/submit-order/
+  SubmitOrderForm.tsx
+  SubmitOrderForm.test.tsx
+  validation.ts
+```
+
+## Directory Docs
+
+- Add a local `README.md` only when a folder has non-obvious invariants or multiple cooperating files that reviewers need to understand.
+- **Do not** add a TypeScript `index.ts` whose only job is convenience re-exporting. Public page/feature entrypoints are covered by **62-no-re-exports**.
+
+## Imports
+
+- Other code should import from the declaring file for implementation internals, especially under Nest `dto/`, service helpers, SSR helpers, and React feature `lib/` or `ui/` subtrees.
+- Route-level page roots and intentional feature public APIs may be imported through their documented entrypoints.
+
+## Refactors
+
+- When touching a unit that still has the implementation at the parent level and the spec elsewhere, **prefer moving** into one subfolder in the same change if the edit is already restructuring that unit.
+
+## Exceptions
+
+- **Generated** layout, Nest CLI scaffolds, or documented one-off app conventions: keep following those; still colocate new unit tests with the unit when practical.

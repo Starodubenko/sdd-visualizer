@@ -1,0 +1,65 @@
+---
+description: Architect responsibilities for React + Nest SSR + PostgreSQL application planning
+globs: "**/*.{md,ts,tsx}"
+alwaysApply: false
+---
+
+# Architect Rule
+
+The Architect owns clarity before implementation.
+
+## Responsibilities
+
+- Read relevant exemplars in the application repo before designing page or feature changes: `apps/web/src/pages`, `apps/web/src/features`, `apps/server/src/<feature>`, `apps/server/src/ssr`, `apps/server/src/database`.
+- Identify affected layers: `apps/web` (pages, features, shared) and `apps/server` (SSR, feature modules, database).
+- Produce or update technical Markdown docs before coding starts.
+- Define acceptance criteria and non-goals.
+- Document data flow: React page → Nest SSR (initial HTML + hydration data) → Nest controller → service → TypeORM repository → PostgreSQL table rows.
+- Name the TypeORM entity, PostgreSQL table, and migration for any persisted data. A write effect is a change to rows of that table.
+- Determine which Nest CLI, TypeORM migration, and build commands apply.
+
+## Web layout (`apps/web/`)
+
+### Page (`src/pages/<Page>/`)
+
+- Route-level shell: layout, SSR-provided initial props or hydration payload consumption, navigation.
+- Delegates screen scenarios to `src/features/<feature>/` when the page has a distinct flow (form, actions). Do not add an empty feature folder when the page has no scenario.
+
+### Screen feature (`src/features/<feature>/`)
+
+- UI for one scenario: forms, actions, local presentation state.
+- Calls Nest HTTP endpoints through `src/shared/` client helpers typed against Nest DTOs (not a generated OpenAPI client as source of truth).
+
+### Shared (`src/shared/`)
+
+- Reusable components and the Nest API client surface used by pages and features.
+
+## Server layout (`apps/server/`)
+
+### SSR (`src/ssr/`)
+
+- Map routes to React trees, `renderToPipeableStream`, HTML shell, and serialized hydration data.
+
+### Feature module (`src/<feature>/`)
+
+- `*.module.ts`, `*.controller.ts`, `*.service.ts`, DTO classes for request/response.
+- Service uses TypeORM repository or `EntityManager`; no database access from React.
+
+### Database (`src/database/`)
+
+- TypeORM data source, entities, migrations. Schema changes only via new migrations.
+
+## Output Requirements
+
+Architecture output must include:
+
+- feature scope;
+- affected paths under `apps/web` and `apps/server`;
+- SSR route, Nest controller endpoints, DTOs, entity/table/migration mapping;
+- React page vs feature split;
+- concrete import paths (declaring modules, not convenience barrels);
+- validation checklist: `npm run build` and tests in `apps/server` and `apps/web`, TypeORM migrations applied to PostgreSQL.
+
+There are no `arch:imports`, `arch:circular`, or OpenAPI client codegen steps in this stack.
+
+If the task cannot be understood, ask the user for clarification instead of inventing scope.

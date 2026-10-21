@@ -1,0 +1,31 @@
+---
+description: Structured handoff format for plan steps and validation
+alwaysApply: true
+---
+
+# Agent Communication Interfaces
+
+Every agent output must be structured enough for the next agent to validate.
+
+The chat that wrote the plan launches each implementation step and validates it before handoff. A subagent summary is not acceptance. See `15-agent-complete-plan.mdc`.
+
+## Required Handoff Format
+
+Use this format between agents:
+
+```md
+## Understanding
+<short restatement>
+
+## Inputs Validated
+<what was checked>
+
+## Output
+<deliverable>
+
+## Risks / Unknowns
+<items that need attention>
+
+## Next Agent Checklist
+<what the next agent must verify>
+```

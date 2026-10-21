@@ -1,0 +1,35 @@
+---
+description: Integrator responsibilities for Nest SSR, React client, and PostgreSQL
+globs: "**/*.{ts,tsx,js,yaml,yml,sh,json}"
+alwaysApply: false
+---
+
+# Integrator / DevOps Rule
+
+The Integrator owns build, database migration, and runtime safety for the **application repository** (React + **Nest SSR** + **PostgreSQL**).
+
+## Responsibilities
+
+- Verify **`npm run build`** succeeds for `apps/server` (Nest SSR + API) and `apps/web` (React client bundle used by SSR and hydration).
+- Confirm the Nest process serves SSR HTML via `renderToPipeableStream` and static/client assets as configured in `apps/server`.
+- Validate **PostgreSQL** connection environment variables (host, port, database, user, password, SSL) and TypeORM data source config in `apps/server`.
+- Run **TypeORM migrations** against the target database before or during deploy; verify no pending migrations in production.
+- Ensure SSR hydration: client bundle version matches what SSR emitted (no stale asset mismatch after deploy).
+- Document rollback: previous migration down (when safe) and previous deploy artifact.
+
+## Build Stack
+
+- **Dev**: Nest watch + web dev server or combined script per app repo README.
+- **Prod**: build `apps/web` then `apps/server` (or monorepo pipeline order documented in the app repo).
+- **Test**: unit/integration tests in `apps/server` and `apps/web`.
+- **Database**: TypeORM migrations in `apps/server/src/database/migrations/`.
+
+There is no micro-frontend remote-entry expose pipeline in this stack.
+
+## Output Requirements
+
+- build verification result (`PASS`/`FAIL` with error details) for server and web;
+- PostgreSQL connectivity and migration status checklist;
+- environment variable checklist for Nest and database;
+- SSR/asset path confirmation after build;
+- operational risks and rollback notes.

@@ -1,0 +1,54 @@
+---
+description: New tasks start as a plan. Composer 2.5 subagents implement. The planning agent validates each result.
+alwaysApply: true
+---
+
+# Complete the Plan
+
+A new task starts in this chat as a plan. This chat is the orchestrator until every step has passed its validation or the plan is blocked. The orchestrator does not implement the plan.
+
+If the user message is `STEP <slug> <id>`, this chat is the implementation subagent for that card only. Do that card, report the diff and the checks, then stop. Do not launch the next card.
+
+## Start
+
+A task is a request that changes the repo. Answer in this chat when the user only asks a question.
+
+1. Read the request and the method docs in this repo for the area the task will touch.
+2. Write the plan before any product edit. More than one step: `.cursor/plans/<slug>/` with `SPEC.md`, `state.md`, and `steps/<id>.md`. One step: a todo list in this chat is enough.
+3. Each step names the files it may change and the checks that prove it.
+4. Ask the user when the business flow is unclear.
+
+`state.md` has `status`, `step`, `next`, `changed`, `checks`, `keep`, and `blocked`. A step card has `role`, `next`, `Read`, `Do`, `Do not`, and `Done when`.
+
+## Implement with Composer 2.5
+
+Launch each implementation step as a new Task subagent:
+
+- `subagent_type`: `generalPurpose`
+- `model`: `composer-2.5-fast`
+- `run_in_background`: false, unless Multitask Mode requires true
+- The prompt contains `STEP <slug> <id>`, that step card, and `SPEC.md` plus `state.md` when they exist
+- Do not `resume` a subagent onto another step
+
+This chat does not edit application code, tests, or generated API for that step. On a background subagent, validate when its completion notification arrives, before launching the next step.
+
+## Validate before the next step
+
+Accept a step only after this chat checks the subagent's work. A subagent summary is not acceptance.
+
+- The diff stays inside the step's files and matches `Do` / `Do not`.
+- The step's checks were run and passed. Re-run a check that has no passing output.
+- Layer rules and generated-file rules still hold.
+
+Reject a step that fails those checks. Launch a new Composer 2.5 subagent with the failed checks and the required fix. Do not patch the failure in this chat.
+
+Update `state.md` or the todo list only after the step passes. Then launch the next step. The plan is done when every step has passed this validation.
+
+## Stop early only when
+
+- The user pauses, narrows scope, or cancels.
+- The user explicitly tells this chat to implement the change itself.
+- The step needs credentials, a service, or a decision only the user can make. Say what is blocked.
+- Continuing would break repo rules, safety, or an explicit user constraint.
+
+Do not stop with "next you could…" while a step can still run in the repo.

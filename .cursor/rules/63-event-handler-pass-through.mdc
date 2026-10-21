@@ -1,0 +1,29 @@
+---
+description: Pass event-handler props by reference when they match; avoid no-op wrapper lambdas.
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Event handler pass-through
+
+When the only job of a callback is to invoke a prop with the **same signature** (no extra args, no guard), pass the prop **by reference**.
+
+**Do:**
+
+```tsx
+onClick={onClose}
+onClick={onBackFromPayment}
+```
+
+**Don’t:**
+
+```tsx
+onClick={() => onClose()}
+onClick={() => onBackFromPayment()}
+```
+
+**Allowed exceptions:**
+
+- You inject arguments: `onClick={() => selectItem(id)}`
+- You must discard an async result: `onClick={() => void submit()}`
+- You combine logic: `onClick={() => { track(); onSave(); }}`

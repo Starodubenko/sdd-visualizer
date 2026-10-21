@@ -1,0 +1,6 @@
+payments:
+  remote: https://example.invalid/payments.git
+  token: test-token
+billing:
+  remote: https://example.invalid/billing.git
+  token: test-token

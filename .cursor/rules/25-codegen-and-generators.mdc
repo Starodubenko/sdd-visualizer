@@ -1,0 +1,58 @@
+---
+description: Require code generation and utility generators before writing repetitive boilerplate
+alwaysApply: true
+---
+
+# Codegen and Generator Rule
+
+Write as little boilerplate by hand as possible. Prefer existing CLI generators and framework scaffolds in the **application repository**.
+
+## Required Preference Order
+
+1. Use an existing framework generator.
+2. Use an existing project utility script.
+3. If the task is common and no generator exists, write a script-generator first.
+4. Use the generator to create the boilerplate.
+5. Manually edit only the business-specific parts.
+
+## Expected Generators (React + Nest SSR + PostgreSQL)
+
+Backend (Nest):
+
+- **Nest CLI** — scaffold a feature module, controller, service, and DTO files under `apps/server/src/<feature>/` (for example `nest g module`, `nest g controller`, `nest g service`).
+- **TypeORM CLI** — generate and run migrations for PostgreSQL schema changes under `apps/server/src/database/migrations/`. Do not hand-edit migration files after they are applied; add a new migration instead.
+
+Frontend (React):
+
+- **React / bundler build** — production client bundle and SSR-compatible output for Nest to serve and hydrate. Follow the app repo’s existing Vite or Webpack setup for `apps/web`.
+- No separate SPA-only pipeline without SSR: first paint goes through Nest `renderToPipeableStream`.
+
+OpenAPI:
+
+- When API documentation is needed, derive it from Nest DTOs via `@nestjs/swagger`. Do not maintain a parallel hand-written spec as the contract source.
+
+Scaffolding by copy:
+
+- New **page**: copy shape from `apps/web/src/pages/` exemplars in the app repo.
+- New **screen feature**: copy from `apps/web/src/features/`.
+- New **Nest feature**: copy from `apps/server/src/<feature>/` and wire in `app.module.ts`.
+- New **SSR route**: extend `apps/server/src/ssr/` following existing patterns.
+
+If a repeated scaffold appears three or more times, add a small project generator script in the app repo before copying again by hand.
+
+## Architect Responsibility
+
+During task decomposition, Architect must output:
+
+- which Nest CLI or TypeORM commands to run;
+- which boilerplate must not be written manually;
+- whether a new utility generator is required;
+- recommended script name, inputs, outputs, and generated files;
+- which Nest DTOs and TypeORM entities are the source of truth for the task;
+- which colocated test files to add (no Omni-style test scaffold CLI in this stack).
+
+## Developer Responsibility
+
+Developer must validate generator recommendations before coding. If a repeated pattern appears and no generator exists, stop and create the generator first.
+
+Generated migrations and Swagger output must still be reviewed, formatted, tested, and adjusted to project contracts. Do not hand-edit applied migrations or generated Swagger artifacts—change the source DTOs/entities and regenerate or add migrations.

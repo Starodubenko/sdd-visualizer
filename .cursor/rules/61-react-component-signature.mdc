@@ -1,0 +1,30 @@
+---
+description: Unified React component signature for TSX files
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# React Component Signature
+
+Use this component declaration format for React components:
+
+```tsx
+import type { FC } from 'react';
+
+type Props = {
+  // ...props
+};
+
+export const ComponentName: FC<Props> = (props) => {
+  const { /* ...props */ } = props;
+  return (...);
+};
+```
+
+## Notes
+
+- Keep existing exported external prop contracts (for example `WidgetProps`) and map them via `type Props = WidgetProps`.
+- For no-prop components, use `export const ComponentName: FC = () => ...`.
+- Wrap heavy table widgets and list components with `React.memo` when the local file already follows that pattern.
+- Do not add dummy props types or noop destructuring (`const { ...restProps } = props; void restProps;`).
+- Use the same pattern for local helper components inside `.tsx` files.

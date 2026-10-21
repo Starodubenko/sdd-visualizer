@@ -1,0 +1,35 @@
+---
+description: Prefer concrete imports; keep existing barrels/public entrypoints intentional and narrow
+alwaysApply: true
+---
+
+# Re-exports and Public Entry Points
+
+## Default Direction
+
+- Prefer concrete declaring-module imports for new implementation code.
+- Do not add broad convenience barrels just to shorten imports.
+- Do not add shim/facade files whose sole job is to hide the real declaring module without being a documented project entrypoint or established segment index.
+
+## Required
+
+- **Import from the module that declares the symbol** (component, hook, type, constant). Same slice: relative path to that file. Other layers: path alias to the **concrete path** under the slice (for example `apps/web/src/features/orders/ui/SubmitOrderForm`, `apps/web/src/shared/api/ordersClient`, `apps/server/src/orders/orders.service`), not a slice root that only re-exports.
+- **Export where you define** the symbol (`export const`, `export type` in the owning file). Do not add intermediate "pass-through" modules.
+- In table mappers and feature wiring, avoid broad `index.ts` imports when they create circular graphs. Prefer concrete modules.
+
+## Allowed Project Entry Points And Existing Barrels
+
+- Pages may keep a root `apps/web/src/pages/<Page>/index.ts` (or `Page.tsx` default export) for routing.
+- Features may keep a small public API file when intentionally documented for cross-page use.
+- `apps/web/src/shared/` may expose established shared entrypoints if the app repo already defines them narrowly.
+- Nest feature modules export through `*.module.ts`; import services from their declaring file in other modules when avoiding cycles.
+- Generated/vendor barrels and framework entrypoints may remain.
+- When editing a cycle-prone area, prefer narrowing imports before deleting established barrels.
+
+## Refactors
+
+- When touching a slice that still has unnecessary legacy barrels or re-export shims, prefer removing or narrowing them in the same change: point importers at declaring modules and delete the shim if nothing else references it.
+
+## Exceptions
+
+- **Generated artifacts** (TypeORM migration files after apply, Swagger/OpenAPI emit from `@nestjs/swagger`, vendor barrels): do not edit by hand; change source entities/DTOs and regenerate or add a new migration. Do not introduce new app-level re-export layers on top of generated output.

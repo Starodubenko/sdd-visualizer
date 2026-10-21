@@ -1,0 +1,23 @@
+{
+  "name": "@sdd/web",
+  "private": true,
+  "scripts": {
+    "build": "vite build --config vite.client.config.ts && vite build --config vite.ssr.config.ts",
+    "test": "node --import tsx --test src/features/document-view/*.test.ts src/pages/Workspace/*.test.ts"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.3",
+    "remark-gfm": "^4.0.1",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  }
+}

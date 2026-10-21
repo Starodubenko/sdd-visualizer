@@ -1,0 +1,56 @@
+---
+description: sdd-visualizer — spec-driven development method and documentation visualizer
+alwaysApply: true
+---
+
+# sdd-visualizer Context
+
+This repository holds the spec-driven development method and the documentation visualizer.
+
+The visualizer application lives here:
+
+```text
+apps/web/                         React
+  src/pages/<Page>/               page and its states
+  src/features/<feature>/         screen scenario: forms, actions
+  src/shared/                     shared components and Nest API client
+
+apps/server/                      NestJS
+  src/main.ts
+  src/app.module.ts
+  src/ssr/                        React render, HTML, hydration payload
+  src/<feature>/                  module, controller, service, dto
+```
+
+The visualizer has no database. It reads and writes files:
+
+- feature specs: `docs/<проект>/<фича>/{in-progress|ready-to-implement|done}/`
+- git remote and token: `global/configs.yaml` (hidden from the document tree)
+
+Before planning or editing the method, read:
+
+- [README.md](../../README.md) — how to run the visualizer
+- [docs/method/README.md](../../docs/method/README.md) — method entry point
+- [01-theory.md](../../docs/method/01-theory.md)
+- [02-maturity.md](../../docs/method/02-maturity.md)
+- [03-transitions.md](../../docs/method/03-transitions.md)
+- [04-roles.md](../../docs/method/04-roles.md)
+- [05-docs-repo.md](../../docs/method/05-docs-repo.md)
+
+## Target application stack for product specs
+
+When agents design or implement an application described by a feature spec, the stack is fixed:
+
+- **React** — UI. Components are declared as `FC<Props>` (see `61-react-component-signature`).
+- **Nest SSR** — one NestJS process serves HTTP API and the first HTML for each page via server-side React (`renderToPipeableStream`). The client hydrates that HTML.
+- **PostgreSQL** — the only database for those products. Only Nest accesses it, through TypeORM (`@nestjs/typeorm`, `pg` driver). Schema changes use TypeORM migrations. React never connects to the database.
+
+That PostgreSQL stack applies to product specifications. It does not add a database to this visualizer.
+
+The operation contract lives in Nest: controller, DTO, service. OpenAPI, when needed, comes from `@nestjs/swagger` on those DTOs. The React client calls that controller directly; there is no generated OpenAPI client as the type source of truth.
+
+## Parent rules do not apply here
+
+Rules under `Projects/.cursor/rules` describe a different product: legacy ERMO/Omni admin UI patterns (dictionary tables, design-system kits, client-side store libraries, webpack micro-frontends, and OpenAPI-to-client codegen). **That parent stack does not apply to tasks in this repository.** For agent behavior and application design tied to specs here, this file and `.cursor/plans/react-nest-ssr-postgres/SPEC.md` (when present) are the stack source of truth.
+
+Prefer robust, validated work over fast work. If a requirement is unclear, stop and ask the user before guessing.

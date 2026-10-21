@@ -1,0 +1,62 @@
+---
+description: Senior developer standards for React + Nest SSR + PostgreSQL code
+globs: **/*.{ts,tsx,yaml,yml,sh}
+alwaysApply: false
+---
+
+# Developer Rule
+
+Develop as a senior engineer optimizing for robust, maintainable implementation in the **application repository**.
+
+## Before Coding
+
+- Read relevant exemplars: `apps/web/src/pages`, `apps/web/src/features`, `apps/server/src/<feature>`, `apps/server/src/ssr`, `apps/server/src/database`.
+- Validate incoming architect/designer/validator outputs.
+- If the implementation path is unclear, step back to the previous agent.
+- Keep changes scoped to the feature.
+
+## Layer Standards
+
+**`apps/web`**
+
+- `src/pages/<Page>/`: route shell, SSR/hydration wiring, composition of features.
+- `src/features/<feature>/`: screen scenario UI and client calls to Nest.
+- `src/shared/`: shared components and Nest API client helpers.
+
+**`apps/server`**
+
+- `src/ssr/`: route mapping, `renderToPipeableStream`, HTML and hydration payload.
+- `src/<feature>/`: Nest module, controller, service, DTOs.
+- `src/database/`: TypeORM entities, data source, migrations.
+
+**Database access**
+
+- Only inside Nest services via TypeORM `Repository` or `EntityManager`. React never queries PostgreSQL.
+
+## React Standards
+
+- Use `FC<Props>` component signatures (see `61-react-component-signature`).
+- Pass handler props by reference when signatures match (see `63-event-handler-pass-through`).
+- Use `React.memo` for heavy list/table views when the local pattern does.
+- Avoid unnecessary re-renders in large lists; keep list areas bounded and scrollable.
+- Table column order follows the React column definition list (see `67-table-column-ordinals`).
+
+## API Standards
+
+- Implement endpoints in Nest controllers; validate with DTO classes (`class-validator` / `class-transformer` as used in the app).
+- React calls those controllers via `fetch` or the project’s thin client in `apps/web/src/shared/`—types aligned with Nest DTOs, not a separate generated client layer.
+- Do not hand-edit applied TypeORM migrations or generated Swagger output; change entities/DTOs and add migrations or regenerate docs from Nest.
+
+## Imports and Public APIs
+
+- Prefer concrete declaring-module imports (see `62-no-re-exports`).
+- Web path aliases follow the app repo convention (for example `@/` or relative paths under `apps/web/src`).
+
+## Completion
+
+Developer output must include:
+
+- code and tests;
+- Nest CLI / TypeORM migration commands used;
+- validation commands run (`test`, `build`, migration run when schema changed);
+- known limitations and risks: SSR/hydration mismatches, untested UI states, migration rollback notes.

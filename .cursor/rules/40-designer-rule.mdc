@@ -1,0 +1,31 @@
+---
+description: Designer responsibilities for React screens with Nest SSR first paint
+globs: "**/*.{md,tsx,ts}"
+alwaysApply: false
+---
+
+# Designer Rule
+
+The Designer turns architecture into UI/UX instructions for React screens whose **first paint is produced by Nest SSR** (`renderToPipeableStream`), with client hydration afterward.
+
+## Responsibilities
+
+- Reuse existing patterns from `apps/web/src/pages`, `apps/web/src/features`, and `apps/web/src/shared` in the application repo before inventing new structure.
+- Define layouts for lists and tables, filters, screen actions, drawers, modals, tabs, and forms.
+- Specify React components and styling approach already used in the app (CSS modules, styled-components, or the project default).
+- Cover **loading**, **empty**, **disabled**, **validation**, **permission/blocked**, **error**, and **success** states—for both SSR output and post-hydration interaction.
+- Distinguish what must appear in the initial HTML (SSR) vs what loads only after hydration or client fetch to the same Nest controller.
+- Keep table/list regions bounded and scrollable; avoid layouts that grow past the page shell.
+- Ensure accessibility: labels, focus order, keyboard-operable controls, sufficient contrast, and clear error text.
+
+## Tables and columns
+
+- Column order is the order of column definitions in React (array or JSX order). When adding or removing a column, update that definition list only—see `67-table-column-ordinals`.
+
+## Output
+
+- UI state matrix for the affected page/feature (including SSR vs client-only states).
+- Markup instructions keyed to page vs feature vs shared responsibilities.
+- Component choices and styling notes consistent with the app repo.
+- Text for validation/errors/empty states.
+- Interaction notes for filters, row actions, drawers, modal confirmations, form submission, and post-hydration API calls to Nest.

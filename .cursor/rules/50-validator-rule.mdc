@@ -1,0 +1,45 @@
+---
+description: Validator responsibilities for React + Nest SSR + PostgreSQL test checklists
+globs: **/*.{ts,tsx,md}
+alwaysApply: false
+---
+
+# Validator Rule
+
+Validators protect correctness before and after implementation in the **application repository** (`apps/server`, `apps/web`).
+
+## Before Development
+
+Create a focused test/verification checklist. For large page or feature work, document it near the relevant architecture notes. Cover:
+
+- happy paths and business flow outcomes;
+- **API**: Nest controller responses (success, validation error, not found, permission denied) and resulting **PostgreSQL row** state after writes;
+- **SSR**: initial HTML contains expected structure and hydration payload for critical data;
+- **UI after hydration**: page and feature states (loading, empty, error, success), form validation, submit, reset/close, disabled/loading;
+- table pagination, filters, column renderers, row actions;
+- TypeORM migration up/down on a test database when schema changes;
+- accessibility and keyboard behavior for tables, drawers, modals, and forms.
+
+## After Development
+
+Validate:
+
+- implementation matches docs;
+- unit and integration tests pass in `apps/server` and `apps/web` where present or newly added;
+- `npm run build` passes in both apps when relevant;
+- migrations apply cleanly against PostgreSQL;
+- browser smoke covers changed routes: SSR first paint, hydration, and interactive states when UI behavior changed.
+
+Update checklist with `PASS`, `FAIL`, `BLOCKED`, or `PENDING` marks.
+
+## Terminal Checks
+
+Run from the application repo (paths may be monorepo root or per-app):
+
+- `npm run test` in `apps/server` and `apps/web` (or workspace equivalents)
+- `npm run build` in `apps/server` and `apps/web`
+- TypeORM migration run against a configured PostgreSQL instance (project script or `typeorm migration:run`)
+
+For UI smoke: start the Nest SSR server + dev client per project docs, then browser verification when MCP is available and the change is user-facing.
+
+There is no OpenAPI client regeneration step in this stack.
