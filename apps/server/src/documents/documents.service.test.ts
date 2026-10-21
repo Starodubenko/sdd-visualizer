@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFile } from 'fs/promises';
+import { readFile, rm, stat } from 'fs/promises';
 import { join } from 'path';
 import { DocumentsService } from './documents.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { stat } from 'fs/promises';
 import { copyFixtures } from '../test-support/copy-fixtures';
 
 test('статусы фич читаются по каталогам', async () => {
@@ -21,10 +20,10 @@ test('статусы фич читаются по каталогам', async () 
 test('перенос файла из готово снимает готовность фичи', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-1405-analyst-rezultat.md',
-    'done',
-  );
+  await rm(join(root, 'docs/billing/invoices/updates/in-progress'), {
+    recursive: true,
+    force: true,
+  });
   await documents.moveStatus(
     'docs/billing/invoices/ready-to-implement/frontend.md',
     'in_progress',
@@ -93,8 +92,18 @@ test('перенос ключевых файлов в done меняет стат
   }
   const keysDoneOpenUpdate = await documents.describe('docs/billing/invoices');
   assert.equal(keysDoneOpenUpdate.status, 'changes');
+  await rm(
+    join(
+      root,
+      'docs/billing/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md',
+    ),
+  );
   await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-1405-analyst-rezultat.md',
+    'docs/billing/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
+    'done',
+  );
+  await documents.moveStatus(
+    'docs/billing/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
     'done',
   );
   const complete = await documents.describe('docs/billing/invoices');
@@ -173,17 +182,17 @@ test('moveStatus для файла изменения дописывает се�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const updatePath =
-    'docs/billing/invoices/updates/in-progress/2026-10-21-1405-analyst-rezultat.md';
+    'docs/billing/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md';
   const moved = await documents.moveStatus(updatePath, 'done');
   assert.equal(
     moved.path,
-    'docs/billing/invoices/updates/done/2026-10-21-1405-analyst-rezultat.md',
+    'docs/billing/invoices/updates/done/2026-10-21-0423-backend-пример-запроса.md',
   );
-  const analyst = await readFile(
-    join(root, 'docs/billing/invoices/ready-to-implement/analyst.md'),
+  const backend = await readFile(
+    join(root, 'docs/billing/invoices/ready-to-implement/backend.md'),
     'utf8',
   );
-  assert.match(analyst, /датой отправки/);
+  assert.match(backend, /```json\n\{\}\n```/);
   await assert.rejects(() => stat(join(root, updatePath)));
   await stat(join(root, moved.path));
 });
@@ -192,21 +201,14 @@ test('moveStatus для файла изменения отклоняет рас�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const updatePath =
-    'docs/billing/invoices/updates/in-progress/2026-10-21-1405-analyst-rezultat.md';
+    'docs/billing/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md';
   const analystPath = join(root, 'docs/billing/invoices/ready-to-implement/analyst.md');
   const analystBefore = await readFile(analystPath, 'utf8');
-  const patched = analystBefore.replace(
-    'с номером, суммой и отметкой',
-    'с номером, суммой, другим текстом и отметкой',
-  );
-  await documents.writeDocument(
-    'docs/billing/invoices/ready-to-implement/analyst.md',
-    patched,
-  );
   await assert.rejects(
     () => documents.moveStatus(updatePath, 'done'),
     BadRequestException,
   );
+  assert.equal(await readFile(analystPath, 'utf8'), analystBefore);
   await stat(join(root, updatePath));
 });
 
@@ -223,16 +225,23 @@ test('список фичи проставляет hasOpenChange по source и�
   });
   const backend = entries.find((entry) => entry.name === 'backend.md');
   assert.ok(backend);
-  assert.equal(backend.hasOpenChange, undefined);
+  assert.equal(backend.hasOpenChange, true);
   await documents.moveStatus(
-    'docs/billing/invoices/updates/in-progress/2026-10-21-1405-analyst-rezultat.md',
+    'docs/billing/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
+    'done',
+  );
+  await documents.moveStatus(
+    'docs/billing/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
     'done',
   );
   const afterMove = await documents.list('docs/billing/invoices');
   const analystAfter = afterMove.find((entry) => entry.name === 'analyst.md');
+  const backendAfter = afterMove.find((entry) => entry.name === 'backend.md');
   assert.ok(analystAfter);
   assert.equal(analystAfter.status, 'ready');
-  assert.equal(analystAfter.hasOpenChange, undefined);
+  assert.equal(analystAfter.hasOpenChange, true);
+  assert.ok(backendAfter);
+  assert.equal(backendAfter.hasOpenChange, undefined);
 });
 
 test('внутри фичи вложенные каталоги без статуса не получают точку в list', async () => {
