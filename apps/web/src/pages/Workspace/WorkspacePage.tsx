@@ -17,6 +17,7 @@ import {
 } from '../../shared/api';
 import { ConfirmModal } from '../../shared/ConfirmModal';
 import { Modal } from '../../shared/Modal';
+import { Toast } from '../../shared/Toast';
 import {
   featureMatchesFilter,
   isFeatureFilterActive,
@@ -94,6 +95,15 @@ export const WorkspacePage: FC<Props> = (props) => {
   const [syncSeconds, setSyncSeconds] = useState(60);
   const [syncing, setSyncing] = useState(false);
   const [changesRefresh, setChangesRefresh] = useState(0);
+  const [toast, setToast] = useState<{ kind: 'ok' | 'bad'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -378,25 +388,21 @@ export const WorkspacePage: FC<Props> = (props) => {
   };
 
   const requestPublish = () => {
-    if (!project) {
-      setError('Выберите проект');
-      return;
-    }
-    setError('');
     setConfirmPublish(true);
   };
 
   const runPublish = () => {
-    if (!project) {
-      return;
-    }
     setConfirmPublish(false);
-    void publishProject(project)
+    void publishProject()
       .then(() => {
+        setToast({ kind: 'ok', message: 'Опубликовано' });
         setChangesRefresh((current) => current + 1);
       })
       .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : 'Не удалось опубликовать');
+        setToast({
+          kind: 'bad',
+          message: reason instanceof Error ? reason.message : 'Не удалось опубликовать',
+        });
       });
   };
 
@@ -431,6 +437,7 @@ export const WorkspacePage: FC<Props> = (props) => {
 
   return (
     <div className="app">
+      {toast && <Toast kind={toast.kind} message={toast.message} />}
       <header className="toolbar">
         <div className="toolbar-start">
           <strong>Визуализатор</strong>
@@ -571,7 +578,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       />
       <ConfirmModal
         title="Публикация"
-        message={project ? `Опубликовать проект ${project}?` : ''}
+        message="Опубликовать изменения документов?"
         confirmLabel="Опубликовать"
         open={confirmPublish}
         onClose={() => setConfirmPublish(false)}

@@ -13,13 +13,17 @@ import { SyncService } from './sync.service';
     GitRoot,
     {
       provide: PublishService,
-      useFactory: (workspace: WorkspaceRoot, gitRoot: GitRoot) => {
+      useFactory: (
+        workspace: WorkspaceRoot,
+        gitRoot: GitRoot,
+        changesService: ChangesService,
+      ) => {
         if (!gitRoot.root) {
           throw new Error('Git root not found');
         }
-        return new PublishService(workspace.root, gitRoot.root);
+        return new PublishService(workspace.root, gitRoot.root, changesService);
       },
-      inject: [WorkspaceRoot, GitRoot],
+      inject: [WorkspaceRoot, GitRoot, ChangesService],
     },
     {
       provide: SyncService,

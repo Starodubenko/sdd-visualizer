@@ -21,8 +21,8 @@ export class PublishController {
   }
 
   @Post('publish')
-  publish(@Body() body: ProjectBody) {
-    return this.publishService.publish(body.project);
+  publish() {
+    return this.publishService.publish();
   }
 
   @Post('sync')

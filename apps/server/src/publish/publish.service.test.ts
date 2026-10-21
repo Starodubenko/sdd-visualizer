@@ -5,7 +5,9 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { promisify } from 'util';
 import { test } from 'node:test';
+import { BadRequestException } from '@nestjs/common';
 import { DocumentsService } from '../documents/documents.service';
+import { ChangesService } from './changes.service';
 import { PublishService } from './publish.service';
 import { copyFixtures } from '../test-support/copy-fixtures';
 
@@ -34,8 +36,14 @@ test('публикация кладёт шаблоны в bare-репозито�
   await writeFile(join(root, 'global/configs.yaml'), 'payments:\n  token: test-token\n', 'utf8');
   const documents = new DocumentsService(root);
   await documents.createFeature('payments', 'new-card');
-  const publish = new PublishService(root, root);
-  await publish.publish('payments');
+  const changes = new ChangesService(root, root);
+  const publish = new PublishService(root, root, changes);
+  await publish.publish();
+  const commitMessage = await git(['log', '-1', '--format=%B'], root);
+  assert.match(commitMessage.stdout, /^Изменена документация/);
+  assert.match(commitMessage.stdout, /\n - payments\n/);
+  assert.match(commitMessage.stdout, /\n    - new-card\n/);
+  assert.match(commitMessage.stdout, /\n       - in-progress\/analyst\.md/);
   const listed = await exec('git', [
     '-c',
     'core.quotepath=false',
@@ -56,4 +64,27 @@ test('публикация кладёт шаблоны в bare-репозито�
     'HEAD:docs/payments/new-card/in-progress/analyst.md',
   ]);
   assert.match(analyst.stdout, /\| Номер \| Скриншот и ссылка на Pixo \| Описание \|/);
+});
+
+test('publish без изменений не двигает HEAD', async () => {
+  const root = copyFixtures();
+  const bare = await mkdtemp(join(tmpdir(), 'sdd-bare-'));
+  await exec('git', ['init', '--bare', '-b', 'main', bare]);
+  await git(['init', '-b', 'main'], root);
+  await git(['remote', 'add', 'origin', bare], root);
+  await git(['add', 'docs'], root);
+  await git(['commit', '-m', 'docs'], root);
+  const headBefore = await git(['rev-parse', 'HEAD'], root);
+  const changes = new ChangesService(root, root);
+  const publish = new PublishService(root, root, changes);
+  await assert.rejects(
+    () => publish.publish(),
+    (error: unknown) => {
+      assert.ok(error instanceof BadRequestException);
+      assert.equal(error.message, 'Нет изменений для публикации');
+      return true;
+    },
+  );
+  const headAfter = await git(['rev-parse', 'HEAD'], root);
+  assert.equal(headBefore.stdout.trim(), headAfter.stdout.trim());
 });

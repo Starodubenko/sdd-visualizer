@@ -110,10 +110,10 @@ export const createUpdate = (
     body: JSON.stringify({ path, section, body }),
   });
 
-export const publishProject = (project: string): Promise<unknown> =>
+export const publishProject = (): Promise<{ pushed: true }> =>
   writeJson('/api/publish', {
     method: 'POST',
-    body: JSON.stringify({ project }),
+    body: JSON.stringify({}),
   });
 
 export const syncProject = (

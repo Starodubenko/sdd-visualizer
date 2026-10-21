@@ -655,6 +655,28 @@ form {
   background: var(--bad);
 }
 
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 30;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.toast-ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.toast-bad {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
 .doc-prelude {
   margin-bottom: 12px;
 }
