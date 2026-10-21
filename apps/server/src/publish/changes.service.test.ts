@@ -47,6 +47,8 @@ test('изменения при разных workspace и git root — diff по
     'invoices/b.md:added',
     'invoices/c.md:deleted',
   ]);
+  assert.ok(result.message.startsWith('Изменена документация'));
+  assert.match(result.message, /\n - billing\n/);
 
   await rm(workspace, { recursive: true, force: true });
   await rm(gitRoot, { recursive: true, force: true });
@@ -78,6 +80,8 @@ test('изменения при одном корне — git status по docs',
     'order-list/gone.md:deleted',
     'order-list/new.md:added',
   ]);
+  assert.ok(result.message.startsWith('Изменена документация'));
+  assert.match(result.message, /\n - payments\n/);
 
   await rm(root, { recursive: true, force: true });
 });

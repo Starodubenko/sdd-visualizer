@@ -161,6 +161,11 @@ button.toolbar-changes-button.has-changes:not(.tree-row):hover {
   border-radius: 6px;
 }
 
+.changes-publish {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .changes-message {
   margin: 0;
   padding: 4px;
@@ -244,6 +249,21 @@ button.toolbar-changes-button.has-changes:not(.tree-row):hover {
   display: block;
 }
 
+button.toolbar-menu-button:not(.tree-row) {
+  padding: 0 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.toolbar-menu-button:not(.tree-row) svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
 .toolbar-sync-countdown {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -293,6 +313,25 @@ button.toolbar-changes-button.has-changes:not(.tree-row):hover {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 6px;
+}
+
+.menu-panel-leading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.menu-panel-leading-label {
+  font: 500 12.5px/1 "IBM Plex Sans", sans-serif;
+  color: var(--ink);
+}
+
+.menu-panel .menu-panel-leading button.theme-switch {
+  width: 46px;
 }
 
 .menu-panel button {
@@ -891,3 +930,11 @@ html[data-theme='dark'] .modal-backdrop { background: #00000073; }
 .modal p { margin: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .modal textarea { min-height: 240px; }
+.publish-preview {
+  white-space: pre;
+  margin: 0 0 12px;
+  max-height: 240px;
+  overflow: auto;
+  font: 12.5px/17px 'IBM Plex Sans', sans-serif;
+  color: var(--ink);
+}

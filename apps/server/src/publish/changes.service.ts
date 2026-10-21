@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import { existsSync, readdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { promisify } from 'util';
+import { buildCommitMessage } from './commit-message';
 import { diffDocsProject, type DocsProjectChange } from './docs-tree-sync';
 
 const exec = promisify(execFile);
@@ -18,6 +19,7 @@ export type ProjectChanges = {
 
 export type ChangesList = {
   projects: ProjectChanges[];
+  message: string;
 };
 
 const listDocsProjectNames = (root: string): string[] => {
@@ -101,7 +103,7 @@ export class ChangesService {
         projects.push({ name, entries });
       }
     }
-    return { projects };
+    return this.withMessage(projects);
   }
 
   private async listFromGitStatus(gitRoot: string): Promise<ChangesList> {
@@ -139,6 +141,13 @@ export class ChangesService {
         name,
         entries: entries.sort((a, b) => a.path.localeCompare(b.path)),
       }));
-    return { projects };
+    return this.withMessage(projects);
+  }
+
+  private withMessage(projects: ProjectChanges[]): ChangesList {
+    return {
+      projects,
+      message: projects.length > 0 ? buildCommitMessage(projects) : '',
+    };
   }
 }

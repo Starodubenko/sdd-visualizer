@@ -5,6 +5,7 @@ import { buildChangeTree, type ChangeTreeNode } from './change-tree';
 
 type Props = {
   onOpenFile: (project: string, path: string) => void;
+  onPublish: (message: string) => void;
   refreshKey: number;
 };
 
@@ -144,11 +145,12 @@ const ProjectGroup: FC<{
 };
 
 export const ChangesMenu: FC<Props> = (props) => {
-  const { onOpenFile, refreshKey } = props;
+  const { onOpenFile, onPublish, refreshKey } = props;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<ProjectChanges[] | null>(null);
+  const [commitMessage, setCommitMessage] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
@@ -173,6 +175,7 @@ export const ChangesMenu: FC<Props> = (props) => {
         void fetchChanges()
           .then((response) => {
             setData(response.projects);
+            setCommitMessage(response.message);
             setHasChanges(response.projects.length > 0);
           })
           .catch((reason: unknown) => {
@@ -217,6 +220,18 @@ export const ChangesMenu: FC<Props> = (props) => {
                 onClose={close}
               />
             ))}
+          {data !== null && data.length > 0 && (
+            <button
+              type="button"
+              className="changes-publish primary"
+              onClick={() => {
+                close();
+                onPublish(commitMessage);
+              }}
+            >
+              Опубликовать
+            </button>
+          )}
         </div>
       )}
     </div>

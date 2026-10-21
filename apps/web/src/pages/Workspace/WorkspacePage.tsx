@@ -90,6 +90,7 @@ export const WorkspacePage: FC<Props> = (props) => {
   const [renameFeaturePath, setRenameFeaturePath] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
+  const [publishMessage, setPublishMessage] = useState('');
   const [featureNameFilter, setFeatureNameFilter] = useState('');
   const [featureStatusFilter, setFeatureStatusFilter] = useState<FeatureStatusFilter>('all');
   const [syncSeconds, setSyncSeconds] = useState(60);
@@ -387,7 +388,8 @@ export const WorkspacePage: FC<Props> = (props) => {
       });
   };
 
-  const requestPublish = () => {
+  const requestPublish = (message: string) => {
+    setPublishMessage(message);
     setConfirmPublish(true);
   };
 
@@ -477,7 +479,11 @@ export const WorkspacePage: FC<Props> = (props) => {
           </label>
         </div>
         <div className="toolbar-end">
-          <ChangesMenu onOpenFile={openChangeFile} refreshKey={changesRefresh} />
+          <ChangesMenu
+            onOpenFile={openChangeFile}
+            onPublish={requestPublish}
+            refreshKey={changesRefresh}
+          />
           <div className="toolbar-sync">
             <button
               type="button"
@@ -513,12 +519,15 @@ export const WorkspacePage: FC<Props> = (props) => {
             <span className="toolbar-sync-countdown">{formatSyncCountdown(syncSeconds)}</span>
           </div>
           <ActionsMenu
-            items={[
-              { label: 'Добавить фичу', onClick: () => setAddFeatureOpen(true) },
-              { label: 'Опубликовать', onClick: requestPublish },
-            ]}
+            icon="burger"
+            leading={
+              <>
+                <span className="menu-panel-leading-label">Тема</span>
+                <ThemeSwitch />
+              </>
+            }
+            items={[{ label: 'Добавить фичу', onClick: () => setAddFeatureOpen(true) }]}
           />
-          <ThemeSwitch />
         </div>
       </header>
       <Modal
@@ -576,14 +585,21 @@ export const WorkspacePage: FC<Props> = (props) => {
         onClose={() => setConfirmDelete(false)}
         onConfirm={runDeleteFeature}
       />
-      <ConfirmModal
+      <Modal
         title="Публикация"
-        message="Опубликовать изменения документов?"
-        confirmLabel="Опубликовать"
         open={confirmPublish}
         onClose={() => setConfirmPublish(false)}
-        onConfirm={runPublish}
-      />
+      >
+        <pre className="publish-preview">{publishMessage}</pre>
+        <div className="modal-actions">
+          <button type="button" onClick={() => setConfirmPublish(false)}>
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={runPublish}>
+            Опубликовать
+          </button>
+        </div>
+      </Modal>
       <aside className="tree-column">
         <div className="tree">
           {projectPath && (

@@ -134,5 +134,5 @@ export type ProjectChanges = {
   entries: ChangeEntry[];
 };
 
-export const fetchChanges = (): Promise<{ projects: ProjectChanges[] }> =>
+export const fetchChanges = (): Promise<{ projects: ProjectChanges[]; message: string }> =>
   fetch('/api/changes').then((response) => readJson(response));
