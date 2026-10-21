@@ -47,6 +47,30 @@ class UpdateBody {
   body = '';
 }
 
+class SettingsAgentBody {
+  project = '';
+  name = '';
+}
+
+class SettingsSubagentBody {
+  project = '';
+  parent = '';
+  name = '';
+}
+
+class SettingsAgentRenameBody {
+  project = '';
+  name = '';
+  nextName = '';
+}
+
+class SettingsSubagentRenameBody {
+  project = '';
+  parent = '';
+  name = '';
+  nextName = '';
+}
+
 @Controller('api')
 export class DocumentsController {
   constructor(
@@ -104,6 +128,47 @@ export class DocumentsController {
   async remove(@Query('path') path: string) {
     await this.documents.deleteFeature(path);
     return { path };
+  }
+
+  @Post('settings/agents')
+  createSettingsAgent(@Body() body: SettingsAgentBody) {
+    return this.documents.createSettingsAgent(body.project, body.name);
+  }
+
+  @Delete('settings/agents')
+  async removeSettingsAgent(@Query('project') project: string, @Query('name') name: string) {
+    await this.documents.deleteSettingsAgent(project, name);
+    return { project, name };
+  }
+
+  @Post('settings/agents/rename')
+  renameSettingsAgent(@Body() body: SettingsAgentRenameBody) {
+    return this.documents.renameSettingsAgent(body.project, body.name, body.nextName);
+  }
+
+  @Post('settings/agents/subagents')
+  createSettingsSubagent(@Body() body: SettingsSubagentBody) {
+    return this.documents.createSettingsSubagent(body.project, body.parent, body.name);
+  }
+
+  @Delete('settings/agents/subagents')
+  async removeSettingsSubagent(
+    @Query('project') project: string,
+    @Query('parent') parent: string,
+    @Query('name') name: string,
+  ) {
+    await this.documents.deleteSettingsSubagent(project, parent, name);
+    return { project, parent, name };
+  }
+
+  @Post('settings/agents/subagents/rename')
+  renameSettingsSubagent(@Body() body: SettingsSubagentRenameBody) {
+    return this.documents.renameSettingsSubagent(
+      body.project,
+      body.parent,
+      body.name,
+      body.nextName,
+    );
   }
 
   @Post('assets')

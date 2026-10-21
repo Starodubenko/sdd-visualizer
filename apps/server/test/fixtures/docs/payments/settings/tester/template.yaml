@@ -1,0 +1,18 @@
+feature: {{feature}}
+role: tester
+depends:
+  - analyst.md
+  - designer.md
+  - backend.md
+
+cases: []
+
+checks:
+  - name: api
+    command: ""
+  - name: unit
+    command: ""
+  - name: ui
+    command: ""
+
+# QA-1 … QA-9: шапка, кейс на каждый AC-*, surface, title, kind, given, when, then, ошибки и состояния, kind auto для контракта, checks, code_test, без новых id.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFile, rm, stat } from 'fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { DocumentsService } from './documents.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -128,6 +128,80 @@ test('создание фичи пишет пять шаблонов в ката
     );
     assert.ok(content.includes('new-card'));
   }
+});
+
+test('настройки проекта — каталог и не видны в списке проекта', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const settings = await documents.describe('docs/payments/settings');
+  assert.equal(settings.kind, 'directory');
+  const project = await documents.list('docs/payments');
+  assert.equal(
+    project.some((entry) => entry.name === 'settings'),
+    false,
+  );
+});
+
+test('создание фичи учитывает лишний каталог настроек с template.*', async () => {
+  const root = copyFixtures();
+  const extraDir = join(root, 'docs/payments/settings/extra-type');
+  await mkdir(extraDir, { recursive: true });
+  await writeFile(
+    join(extraDir, 'template.md'),
+    '# {{feature}}\nfeature: {{feature}}\n',
+    'utf8',
+  );
+  const documents = new DocumentsService(root);
+  await documents.createFeature('payments', 'with-extra');
+  await stat(join(root, 'docs/payments/with-extra/in-progress/extra-type.md'));
+  const extra = await readFile(
+    join(root, 'docs/payments/with-extra/in-progress/extra-type.md'),
+    'utf8',
+  );
+  assert.match(extra, /with-extra/);
+});
+
+test('каталог настроек только с agent.md не попадает в фичу', async () => {
+  const root = copyFixtures();
+  const agentOnlyDir = join(root, 'docs/payments/settings/agent-only');
+  await mkdir(agentOnlyDir, { recursive: true });
+  await writeFile(join(agentOnlyDir, 'agent.md'), 'agent\n', 'utf8');
+  const documents = new DocumentsService(root);
+  await documents.createFeature('payments', 'no-agent-only');
+  await assert.rejects(() =>
+    stat(join(root, 'docs/payments/no-agent-only/in-progress/agent-only.md')),
+  );
+  for (const name of [
+    'analyst.md',
+    'designer.md',
+    'backend.md',
+    'tester.yaml',
+    'frontend.md',
+  ]) {
+    await stat(join(root, 'docs/payments/no-agent-only/in-progress', name));
+  }
+});
+
+test('создание фичи без шаблонов в настройках не создаёт каталог фичи', async () => {
+  const root = copyFixtures();
+  const settingsRoot = join(root, 'docs/payments/settings');
+  for (const typeName of ['analyst', 'designer', 'backend', 'tester', 'frontend']) {
+    const typeDir = join(settingsRoot, typeName);
+    const entries = await readdir(typeDir);
+    for (const fileName of entries) {
+      if (fileName.startsWith('template.')) {
+        await rm(join(typeDir, fileName));
+      }
+    }
+  }
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.createFeature('payments', 'empty-settings'),
+    (error: unknown) =>
+      error instanceof BadRequestException &&
+      error.message === 'Нет шаблонов в настройках',
+  );
+  await assert.rejects(() => stat(join(root, 'docs/payments/empty-settings')));
 });
 
 test('каталог global скрыт от дерева', async () => {
@@ -299,4 +373,237 @@ test('внутри фичи вложенные каталоги без стат�
   const assets = entries.find((entry) => entry.name === 'assets' && entry.kind === 'dir');
   assert.ok(assets);
   assert.equal(assets.status, undefined);
+});
+
+test('createSettingsAgent создаёт каталог, файлы и строку оркестратора', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const result = await documents.createSettingsAgent('payments', 'review');
+  assert.equal(result.path, 'docs/payments/settings/review');
+  const template = await readFile(join(root, 'docs/payments/settings/review/template.md'), 'utf8');
+  assert.equal(template, '# {{feature}}\nfeature: {{feature}}\nrole: review\n');
+  const agent = await readFile(join(root, 'docs/payments/settings/review/agent.md'), 'utf8');
+  assert.equal(
+    agent,
+    'Этот агент пишет только файл `review.md` по соседнему `template.md` и не меняет набор разделов.\n',
+  );
+  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  assert.match(orchestrator, /\| `review\.md` \| `settings\/review\/` \|/);
+});
+
+test('createSettingsAgent отклоняет повторное имя без изменения оркестратора', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await documents.createSettingsAgent('payments', 'review');
+  const orchestratorBefore = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  await assert.rejects(
+    () => documents.createSettingsAgent('payments', 'review'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Агент уже существует',
+  );
+  const orchestratorAfter = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  assert.equal(orchestratorAfter, orchestratorBefore);
+});
+
+test('createSettingsAgent отклоняет пустое имя', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.createSettingsAgent('payments', ''),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Имя агента — kebab-case',
+  );
+  const settingsEntries = await readdir(join(root, 'docs/payments/settings'));
+  assert.ok(!settingsEntries.includes(''));
+});
+
+test('deleteSettingsAgent удаляет каталог и строку оркестратора', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await documents.createSettingsAgent('payments', 'review');
+  await documents.deleteSettingsAgent('payments', 'review');
+  await assert.rejects(() => stat(join(root, 'docs/payments/settings/review')));
+  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  assert.doesNotMatch(orchestrator, /settings\/review\//);
+  assert.match(orchestrator, /\| `analyst\.md` \| `settings\/analyst\/` \|/);
+});
+
+test('createSettingsSubagent создаёт каталог, файлы и строку в agent.md родителя', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const analystAgentBefore = await readFile(
+    join(root, 'docs/payments/settings/analyst/agent.md'),
+    'utf8',
+  );
+  const result = await documents.createSettingsSubagent('payments', 'analyst', 'context');
+  assert.equal(result.path, 'docs/payments/settings/analyst/context');
+  const template = await readFile(
+    join(root, 'docs/payments/settings/analyst/context/template.md'),
+    'utf8',
+  );
+  assert.equal(template, '## context\n\nЧасть документа агента analyst.\n');
+  const subagentAgent = await readFile(
+    join(root, 'docs/payments/settings/analyst/context/agent.md'),
+    'utf8',
+  );
+  assert.equal(
+    subagentAgent,
+    'Этот сабагент пишет только свою часть файла `analyst.md` по соседнему `template.md`.\n',
+  );
+  const analystAgentAfter = await readFile(
+    join(root, 'docs/payments/settings/analyst/agent.md'),
+    'utf8',
+  );
+  assert.ok(analystAgentAfter.startsWith(analystAgentBefore.trimEnd()));
+  assert.match(
+    analystAgentAfter,
+    /\| `context` \| `settings\/analyst\/context\/` \|/,
+  );
+  assert.match(analystAgentAfter, /## Сабагенты/);
+});
+
+test('createSettingsSubagent не мешает созданию фичи без context.md', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await documents.createSettingsSubagent('payments', 'analyst', 'context');
+  await documents.createFeature('payments', 'with-subagent');
+  await stat(join(root, 'docs/payments/with-subagent/in-progress/analyst.md'));
+  await assert.rejects(() =>
+    stat(join(root, 'docs/payments/with-subagent/in-progress/context.md')),
+  );
+});
+
+test('deleteSettingsSubagent удаляет каталог и раздел Сабагенты', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const analystAgentBefore = await readFile(
+    join(root, 'docs/payments/settings/analyst/agent.md'),
+    'utf8',
+  );
+  await documents.createSettingsSubagent('payments', 'analyst', 'context');
+  await documents.deleteSettingsSubagent('payments', 'analyst', 'context');
+  await assert.rejects(() => stat(join(root, 'docs/payments/settings/analyst/context')));
+  const analystAgentAfter = await readFile(
+    join(root, 'docs/payments/settings/analyst/agent.md'),
+    'utf8',
+  );
+  assert.equal(analystAgentAfter.trimEnd(), analystAgentBefore.trimEnd());
+  assert.doesNotMatch(analystAgentAfter, /`context`/);
+});
+
+test('createSettingsSubagent отклоняет повторное имя', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await documents.createSettingsSubagent('payments', 'analyst', 'context');
+  await assert.rejects(
+    () => documents.createSettingsSubagent('payments', 'analyst', 'context'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Сабагент уже существует',
+  );
+});
+
+test('createSettingsSubagent отклоняет отсутствующего родителя', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.createSettingsSubagent('payments', 'missing-agent', 'context'),
+    (error: unknown) =>
+      error instanceof NotFoundException && error.message === 'Агент не найден',
+  );
+  await assert.rejects(() => stat(join(root, 'docs/payments/settings/missing-agent/context')));
+});
+
+test('createSettingsSubagent отклоняет некорректное имя', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.createSettingsSubagent('payments', 'analyst', 'Bad Name'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Имя сабагента — kebab-case',
+  );
+});
+
+test('deleteSettingsSubagent отклоняет отсутствующий каталог', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.deleteSettingsSubagent('payments', 'analyst', 'context'),
+    (error: unknown) =>
+      error instanceof NotFoundException && error.message === 'Сабагент не найден',
+  );
+});
+
+test('renameSettingsAgent переносит каталог и обновляет оркестратор и пути', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const result = await documents.renameSettingsAgent('payments', 'analyst', 'product-analyst');
+  assert.equal(result.path, 'docs/payments/settings/product-analyst');
+  await assert.rejects(() => stat(join(root, 'docs/payments/settings/analyst')));
+  await stat(join(root, 'docs/payments/settings/product-analyst'));
+  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  assert.match(orchestrator, /\| `product-analyst\.md` \| `settings\/product-analyst\/` \|/);
+  assert.doesNotMatch(orchestrator, /settings\/analyst\//);
+  const parentAgent = await readFile(
+    join(root, 'docs/payments/settings/product-analyst/agent.md'),
+    'utf8',
+  );
+  assert.match(
+    parentAgent,
+    /`settings\/product-analyst\/acceptance\/`/,
+  );
+  const template = await readFile(
+    join(root, 'docs/payments/settings/product-analyst/template.md'),
+    'utf8',
+  );
+  assert.match(template, /^role: product-analyst$/m);
+});
+
+test('renameSettingsAgent отклоняет имя при занятом каталоге', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.renameSettingsAgent('payments', 'analyst', 'designer'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Агент уже существует',
+  );
+  await stat(join(root, 'docs/payments/settings/analyst'));
+  await assert.rejects(() => stat(join(root, 'docs/payments/settings/product-analyst')));
+});
+
+test('renameSettingsSubagent переименовывает каталог и строку в agent.md', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const orchestratorBefore = await readFile(
+    join(root, 'docs/payments/settings/orchestrator.md'),
+    'utf8',
+  );
+  const result = await documents.renameSettingsSubagent('payments', 
+    'analyst',
+    'acceptance',
+    'criteria',
+  );
+  assert.equal(result.path, 'docs/payments/settings/analyst/criteria');
+  await assert.rejects(() => stat(join(root, 'docs/payments/settings/analyst/acceptance')));
+  await stat(join(root, 'docs/payments/settings/analyst/criteria'));
+  const parentAgent = await readFile(join(root, 'docs/payments/settings/analyst/agent.md'), 'utf8');
+  assert.match(
+    parentAgent,
+    /\| `criteria` \| `settings\/analyst\/criteria\/` \|/,
+  );
+  assert.doesNotMatch(parentAgent, /acceptance/);
+  const orchestratorAfter = await readFile(
+    join(root, 'docs/payments/settings/orchestrator.md'),
+    'utf8',
+  );
+  assert.equal(orchestratorAfter, orchestratorBefore);
+});
+
+test('renameSettingsAgent отклоняет пустое nextName', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.renameSettingsAgent('payments', 'analyst', ''),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Имя агента — kebab-case',
+  );
 });

@@ -334,9 +334,23 @@ button.toolbar-menu-button:not(.tree-row) svg {
   width: 46px;
 }
 
-.menu-panel button {
+.menu-panel button,
+.menu-panel a {
   width: 100%;
   justify-content: flex-start;
+}
+
+.menu-panel a {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.menu-panel a:hover {
+  background: var(--wash);
 }
 
 .sheet {
@@ -378,6 +392,24 @@ button.toolbar-menu-button:not(.tree-row) svg {
 .feature-heading-name {
   font: 600 16px/22px "IBM Plex Sans", sans-serif;
   color: var(--ink);
+}
+
+.feature-heading-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button.danger:not(.tree-row) {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+button.danger:not(.tree-row):hover {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
 }
 
 .document .sheet-card {

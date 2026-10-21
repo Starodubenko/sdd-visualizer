@@ -20,13 +20,22 @@ export type NodeDescription = {
   entries?: TreeEntry[];
 };
 
-export type PageData = {
-  page: 'workspace';
-  workspace: {
-    projects: string[];
-    featureEntries: TreeEntry[];
-  };
-};
+export type PageData =
+  | {
+      page: 'workspace';
+      workspace: {
+        projects: string[];
+        featureEntries: TreeEntry[];
+      };
+    }
+  | {
+      page: 'settings';
+      settings: {
+        project: string;
+        projects: string[];
+        entries: TreeEntry[];
+      };
+    };
 
 const errorMessageFromBody = (text: string): string => {
   if (!text) {
@@ -81,6 +90,59 @@ export const createFeature = (
 
 export const deleteFeature = (path: string): Promise<{ path: string }> =>
   writeJson(`/api/features?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+
+export const createAgent = (project: string, name: string): Promise<{ path: string }> =>
+  writeJson('/api/settings/agents', {
+    method: 'POST',
+    body: JSON.stringify({ project, name }),
+  });
+
+export const deleteAgent = (project: string, name: string): Promise<{ name: string }> =>
+  writeJson(
+    `/api/settings/agents?project=${encodeURIComponent(project)}&name=${encodeURIComponent(name)}`,
+    { method: 'DELETE' },
+  );
+
+export const renameAgent = (
+  project: string,
+  name: string,
+  nextName: string,
+): Promise<{ path: string }> =>
+  writeJson('/api/settings/agents/rename', {
+    method: 'POST',
+    body: JSON.stringify({ project, name, nextName }),
+  });
+
+export const createSubagent = (
+  project: string,
+  parent: string,
+  name: string,
+): Promise<{ path: string }> =>
+  writeJson('/api/settings/agents/subagents', {
+    method: 'POST',
+    body: JSON.stringify({ project, parent, name }),
+  });
+
+export const deleteSubagent = (
+  project: string,
+  parent: string,
+  name: string,
+): Promise<{ parent: string; name: string }> =>
+  writeJson(
+    `/api/settings/agents/subagents?project=${encodeURIComponent(project)}&parent=${encodeURIComponent(parent)}&name=${encodeURIComponent(name)}`,
+    { method: 'DELETE' },
+  );
+
+export const renameSubagent = (
+  project: string,
+  parent: string,
+  name: string,
+  nextName: string,
+): Promise<{ path: string }> =>
+  writeJson('/api/settings/agents/subagents/rename', {
+    method: 'POST',
+    body: JSON.stringify({ project, parent, name, nextName }),
+  });
 
 export const renameFeature = (
   path: string,

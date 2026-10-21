@@ -4,13 +4,22 @@ import { join } from 'path';
 import type { Response } from 'express';
 import { DocumentsService } from '../documents/documents.service';
 
-export type PageData = {
-  page: 'workspace';
-  workspace: {
-    projects: string[];
-    featureEntries: { name: string; kind: 'dir' | 'file' }[];
-  };
-};
+export type PageData =
+  | {
+      page: 'workspace';
+      workspace: {
+        projects: string[];
+        featureEntries: { name: string; kind: 'dir' | 'file' }[];
+      };
+    }
+  | {
+      page: 'settings';
+      settings: {
+        project: string;
+        projects: string[];
+        entries: { name: string; kind: 'dir' | 'file' }[];
+      };
+    };
 
 type ServerEntry = {
   renderPage: (response: Response, data: PageData) => void;
@@ -23,7 +32,10 @@ export class SsrService {
   async workspaceData(): Promise<PageData> {
     const docsEntries = await this.documents.list('docs').catch(() => []);
     const projects = docsEntries
-      .filter((entry) => entry.kind === 'dir' && entry.name !== 'method')
+      .filter(
+        (entry) =>
+          entry.kind === 'dir' && entry.name !== 'method' && entry.name !== 'settings',
+      )
       .map((entry) => entry.name);
     const firstProject = projects[0];
     const featureEntries = firstProject
@@ -35,6 +47,24 @@ export class SsrService {
         projects,
         featureEntries,
       },
+    };
+  }
+
+  async settingsData(project?: string): Promise<PageData> {
+    const docsEntries = await this.documents.list('docs').catch(() => []);
+    const projects = docsEntries
+      .filter(
+        (entry) =>
+          entry.kind === 'dir' && entry.name !== 'method' && entry.name !== 'settings',
+      )
+      .map((entry) => entry.name);
+    const selected = project && projects.includes(project) ? project : projects[0] ?? '';
+    const entries = selected
+      ? await this.documents.list(`docs/${selected}/settings`).catch(() => [])
+      : [];
+    return {
+      page: 'settings',
+      settings: { project: selected, projects, entries },
     };
   }
 

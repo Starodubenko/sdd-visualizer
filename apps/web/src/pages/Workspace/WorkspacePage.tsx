@@ -4,9 +4,15 @@ import { ChangesMenu } from '../../features/changes-menu/ChangesMenu';
 import { ThemeSwitch } from '../../features/theme/ThemeSwitch';
 import { ActionsMenu } from '../../shared/ActionsMenu';
 import {
+  createAgent,
   createFeature,
+  createSubagent,
+  deleteAgent,
+  deleteSubagent,
   deleteFeature,
+  renameAgent,
   renameFeature,
+  renameSubagent,
   fetchDocument,
   fetchNode,
   fetchTree,
@@ -44,10 +50,74 @@ const FEATURE_STATUS_FILTER_OPTIONS: FeatureStatusFilter[] = [
 const featureStatusFilterLabel = (value: FeatureStatusFilter): string =>
   value === 'all' ? 'Все' : statusLabel(value);
 
-type Props = {
-  projects: string[];
-  featureEntries: TreeEntry[];
+const settingsRoot = (projectName: string): string => `docs/${projectName}/settings`;
+
+const settingsTail = (path: string): { project: string; rest: string[] } | null => {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length < 3 || parts[0] !== 'docs' || parts[2] !== 'settings') {
+    return null;
+  }
+  return { project: parts[1], rest: parts.slice(3) };
 };
+
+const isSettingsAgentPath = (path: string): boolean => {
+  const tail = settingsTail(path);
+  return tail !== null && tail.rest.length === 1;
+};
+
+const isSettingsSubagentPath = (path: string): boolean => {
+  const tail = settingsTail(path);
+  return tail !== null && tail.rest.length === 2;
+};
+
+const settingsAgentFromPath = (path: string): { dirPath: string; name: string } | null => {
+  const tail = settingsTail(path);
+  if (!tail || tail.rest.length === 0) {
+    return null;
+  }
+  const agent = tail.rest[0];
+  if (agent === 'orchestrator.md') {
+    return null;
+  }
+  if (tail.rest.length === 1 && agent.includes('.')) {
+    return null;
+  }
+  return { dirPath: `${settingsRoot(tail.project)}/${agent}`, name: agent };
+};
+
+const settingsSubagentFromPath = (
+  path: string,
+): { dirPath: string; parent: string; name: string } | null => {
+  const tail = settingsTail(path);
+  if (!tail || tail.rest.length < 2) {
+    return null;
+  }
+  const [parent, subagent] = tail.rest;
+  if (parent === 'orchestrator.md') {
+    return null;
+  }
+  if (tail.rest.length === 2 && subagent.includes('.')) {
+    return null;
+  }
+  return {
+    dirPath: `${settingsRoot(tail.project)}/${parent}/${subagent}`,
+    parent,
+    name: subagent,
+  };
+};
+
+type Props =
+  | {
+      mode?: 'workspace';
+      projects: string[];
+      featureEntries: TreeEntry[];
+    }
+  | {
+      mode: 'settings';
+      projects: string[];
+      settingsProject: string;
+      settingsEntries: TreeEntry[];
+    };
 
 type Cache = Record<string, TreeEntry[]>;
 
@@ -57,27 +127,36 @@ const initialProjectPath = (projects: string[]): string =>
   projects[0] ? `docs/${projects[0]}` : '';
 
 export const WorkspacePage: FC<Props> = (props) => {
-  const { projects, featureEntries } = props;
-  const [project, setProject] = useState(projects[0] ?? '');
-  const projectPath = project ? `docs/${project}` : '';
+  const isSettings = props.mode === 'settings';
+  const projects = props.projects;
+  const featureEntries = isSettings ? [] : props.featureEntries;
+  const settingsEntries = isSettings ? props.settingsEntries : [];
+  const initialProject = isSettings
+    ? props.settingsProject || projects[0] || ''
+    : projects[0] ?? '';
+  const initialTreePath = isSettings
+    ? initialProject
+      ? settingsRoot(initialProject)
+      : ''
+    : initialProjectPath(projects);
+  const initialTreeEntries = isSettings ? settingsEntries : featureEntries;
+  const [project, setProject] = useState(initialProject);
+  const treeRootPath = isSettings ? (project ? settingsRoot(project) : '') : project ? `docs/${project}` : '';
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    const path = initialProjectPath(projects);
-    return path ? { [path]: true } : {};
+    return initialTreePath ? { [initialTreePath]: true } : {};
   });
   const [cache, setCache] = useState<Cache>(() => {
-    const path = initialProjectPath(projects);
-    return path ? { [path]: featureEntries } : {};
+    return initialTreePath ? { [initialTreePath]: initialTreeEntries } : {};
   });
-  const [selected, setSelected] = useState(() => initialProjectPath(projects));
+  const [selected, setSelected] = useState(() => initialTreePath);
   const [node, setNode] = useState<NodeDescription | null>(() => {
-    const path = initialProjectPath(projects);
-    if (!path) {
+    if (!initialTreePath) {
       return null;
     }
     return {
-      path,
-      kind: 'project',
-      entries: featureEntries,
+      path: initialTreePath,
+      kind: isSettings ? 'directory' : 'project',
+      entries: initialTreeEntries,
     };
   });
   const [document, setDocument] = useState<{ path: string; content: string } | null>(null);
@@ -85,10 +164,21 @@ export const WorkspacePage: FC<Props> = (props) => {
   const [error, setError] = useState('');
   const [addFeatureOpen, setAddFeatureOpen] = useState(false);
   const [newFeatureId, setNewFeatureId] = useState('');
+  const [addAgentOpen, setAddAgentOpen] = useState(false);
+  const [newAgentName, setNewAgentName] = useState('');
+  const [addSubagentOpen, setAddSubagentOpen] = useState(false);
+  const [newSubagentName, setNewSubagentName] = useState('');
   const [renameFeatureOpen, setRenameFeatureOpen] = useState(false);
   const [renameFeatureId, setRenameFeatureId] = useState('');
   const [renameFeaturePath, setRenameFeaturePath] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteAgent, setConfirmDeleteAgent] = useState(false);
+  const [confirmDeleteSubagent, setConfirmDeleteSubagent] = useState(false);
+  const [renameSettingsOpen, setRenameSettingsOpen] = useState(false);
+  const [renameSettingsKind, setRenameSettingsKind] = useState<'agent' | 'subagent'>('agent');
+  const [renameSettingsName, setRenameSettingsName] = useState('');
+  const [renameSettingsParent, setRenameSettingsParent] = useState('');
+  const [renameSettingsError, setRenameSettingsError] = useState('');
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [publishMessage, setPublishMessage] = useState('');
   const [featureNameFilter, setFeatureNameFilter] = useState('');
@@ -165,7 +255,45 @@ export const WorkspacePage: FC<Props> = (props) => {
     });
   };
 
+  const refreshSettingsTree = () => {
+    const rootPath = settingsRoot(project);
+    void fetchTree(rootPath).then((entries) => {
+      setCache((current) => ({ ...current, [rootPath]: entries }));
+    });
+  };
+
   const openChangeFile = (projectName: string, relativePath: string) => {
+    if (relativePath === 'settings' || relativePath.startsWith('settings/')) {
+      if (!isSettings) {
+        window.location.href = `/settings?project=${encodeURIComponent(projectName)}`;
+        return;
+      }
+      const rootPath = settingsRoot(projectName);
+      const parts = relativePath.split('/').filter(Boolean);
+      setProject(projectName);
+      setExpanded((current) => {
+        const next = { ...current, [rootPath]: true };
+        let prefix = rootPath;
+        for (let i = 1; i < parts.length - 1; i += 1) {
+          prefix = `${prefix}/${parts[i]}`;
+          next[prefix] = true;
+        }
+        return next;
+      });
+      void fetchTree(rootPath).then((entries) => {
+        setCache((current) => ({ ...current, [rootPath]: entries }));
+      });
+      if (parts.length === 1) {
+        loadNode(rootPath);
+        return;
+      }
+      openFile(`docs/${projectName}/${relativePath}`);
+      return;
+    }
+    if (isSettings) {
+      window.location.href = '/';
+      return;
+    }
     setProject(projectName);
     const projectDir = `docs/${projectName}`;
     const parts = relativePath.split('/').filter(Boolean);
@@ -189,6 +317,31 @@ export const WorkspacePage: FC<Props> = (props) => {
   };
 
   const refreshOpenScreen = useCallback(() => {
+    if (isSettings) {
+      refreshSettingsTree();
+      const currentSelected = selectedRef.current;
+      const currentNode = nodeRef.current;
+      const currentDocument = documentRef.current;
+      if (currentDocument) {
+        void fetchDocument(currentDocument.path)
+          .then(setDocument)
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
+          });
+      } else if (currentNode && currentNode.kind !== 'file') {
+        void fetchNode(currentSelected)
+          .then((next) => {
+            setNode(next);
+            if (next.entries) {
+              setCache((current) => ({ ...current, [currentSelected]: next.entries ?? [] }));
+            }
+          })
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
+          });
+      }
+      return;
+    }
     const name = projectRef.current;
     if (!name) {
       return;
@@ -222,7 +375,7 @@ export const WorkspacePage: FC<Props> = (props) => {
           setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
         });
     }
-  }, []);
+  }, [isSettings]);
 
   const refreshOpenScreenRef = useRef(refreshOpenScreen);
   refreshOpenScreenRef.current = refreshOpenScreen;
@@ -258,6 +411,9 @@ export const WorkspacePage: FC<Props> = (props) => {
   runSyncRef.current = runSync;
 
   useEffect(() => {
+    if (isSettings) {
+      return undefined;
+    }
     const id = window.setInterval(() => {
       if (syncInFlightRef.current) {
         return;
@@ -271,7 +427,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [isSettings]);
 
   useEffect(() => {
     const source = new EventSource('/api/events');
@@ -286,9 +442,8 @@ export const WorkspacePage: FC<Props> = (props) => {
       } catch {
         return;
       }
-      const proj = projectRef.current;
       const docPath = documentRef.current?.path;
-      const prefix = proj ? `docs/${proj}/` : '';
+      const prefix = isSettings ? `${settingsRoot(projectRef.current)}/` : projectRef.current ? `docs/${projectRef.current}/` : '';
       if (paths.some((path) => path.startsWith('docs/'))) {
         setChangesRefresh((current) => current + 1);
       }
@@ -300,7 +455,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       }
     };
     return () => source.close();
-  }, []);
+  }, [isSettings]);
 
   const selectedFeaturePath = resolveFeaturePath(
     selected,
@@ -323,7 +478,11 @@ export const WorkspacePage: FC<Props> = (props) => {
         setNewFeatureId('');
         refreshProjectTree(project);
         loadNode(result.path);
-        setExpanded((current) => ({ ...current, [result.path]: true, [projectPath]: true }));
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [treeRootPath]: true,
+        }));
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось создать фичу');
@@ -365,7 +524,7 @@ export const WorkspacePage: FC<Props> = (props) => {
         setExpanded((current) => ({
           ...current,
           [result.path]: true,
-          [projectPath]: true,
+          [treeRootPath]: true,
         }));
       })
       .catch((reason: unknown) => {
@@ -385,6 +544,221 @@ export const WorkspacePage: FC<Props> = (props) => {
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось удалить фичу');
+      });
+  };
+
+  const submitAddAgent = () => {
+    if (!isFeatureId(newAgentName)) {
+      setError('Имя агента — kebab-case');
+      return;
+    }
+    setError('');
+    void createAgent(project, newAgentName)
+      .then((result) => {
+        setAddAgentOpen(false);
+        setNewAgentName('');
+        refreshSettingsTree();
+        loadNode(result.path);
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [settingsRoot(project)]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось создать агента');
+      });
+  };
+
+  const settingsFocusPath =
+    document?.path ?? (node && node.kind !== 'file' ? node.path : selected);
+  const settingsSubagentFocus = isSettings
+    ? settingsSubagentFromPath(settingsFocusPath)
+    : null;
+  const settingsAgentFocus =
+    isSettings && !settingsSubagentFocus ? settingsAgentFromPath(settingsFocusPath) : null;
+  const selectedAgentName = settingsAgentFocus?.name ?? '';
+
+  const selectedSubagent = settingsSubagentFocus
+    ? { parent: settingsSubagentFocus.parent, name: settingsSubagentFocus.name }
+    : null;
+
+  const closeRenameSettings = () => {
+    setRenameSettingsOpen(false);
+    setRenameSettingsName('');
+    setRenameSettingsParent('');
+    setRenameSettingsError('');
+  };
+
+  const openRenameAgent = () => {
+    if (!settingsAgentFocus) {
+      return;
+    }
+    setRenameSettingsKind('agent');
+    setRenameSettingsName(settingsAgentFocus.name);
+    setRenameSettingsParent('');
+    setRenameSettingsError('');
+    setRenameSettingsOpen(true);
+  };
+
+  const openRenameSubagent = () => {
+    if (!settingsSubagentFocus) {
+      return;
+    }
+    setRenameSettingsKind('subagent');
+    setRenameSettingsName(settingsSubagentFocus.name);
+    setRenameSettingsParent(settingsSubagentFocus.parent);
+    setRenameSettingsError('');
+    setRenameSettingsOpen(true);
+  };
+
+  const submitRenameSettings = () => {
+    if (renameSettingsKind === 'agent') {
+      const currentName = settingsAgentFocus?.name ?? renameSettingsName;
+      if (renameSettingsName === currentName) {
+        closeRenameSettings();
+        return;
+      }
+      if (!isFeatureId(renameSettingsName)) {
+        setRenameSettingsError('Имя агента — kebab-case');
+        return;
+      }
+      setRenameSettingsError('');
+      const openFileName = document?.path.split('/').pop();
+      void renameAgent(project, currentName, renameSettingsName)
+        .then((result) => {
+          closeRenameSettings();
+          refreshSettingsTree();
+          if (openFileName && document && settingsAgentFromPath(document.path)) {
+            const nextFilePath = `${result.path}/${openFileName}`;
+            setExpanded((current) => ({
+              ...current,
+              [result.path]: true,
+              [settingsRoot(project)]: true,
+            }));
+            openFile(nextFilePath);
+            return;
+          }
+          loadNode(result.path);
+          setExpanded((current) => ({
+            ...current,
+            [result.path]: true,
+            [settingsRoot(project)]: true,
+          }));
+        })
+        .catch((reason: unknown) => {
+          setRenameSettingsError(
+            reason instanceof Error ? reason.message : 'Не удалось переименовать агента',
+          );
+        });
+      return;
+    }
+    const parent = settingsSubagentFocus?.parent ?? renameSettingsParent;
+    const currentName = settingsSubagentFocus?.name ?? renameSettingsName;
+    if (renameSettingsName === currentName) {
+      closeRenameSettings();
+      return;
+    }
+    if (!isFeatureId(renameSettingsName)) {
+      setRenameSettingsError('Имя сабагента — kebab-case');
+      return;
+    }
+    setRenameSettingsError('');
+    const openFileName = document?.path.split('/').pop();
+    void renameSubagent(project, parent, currentName, renameSettingsName)
+      .then((result) => {
+        closeRenameSettings();
+        refreshSettingsTree();
+        const parentPath = `${settingsRoot(project)}/${parent}`;
+        refreshFeatureTree(parentPath);
+        if (openFileName && document && settingsSubagentFromPath(document.path)) {
+          const nextFilePath = `${result.path}/${openFileName}`;
+          setExpanded((current) => ({
+            ...current,
+            [result.path]: true,
+            [parentPath]: true,
+            [settingsRoot(project)]: true,
+          }));
+          openFile(nextFilePath);
+          return;
+        }
+        loadNode(result.path);
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [parentPath]: true,
+          [settingsRoot(project)]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setRenameSettingsError(
+          reason instanceof Error ? reason.message : 'Не удалось переименовать сабагента',
+        );
+      });
+  };
+
+  const submitAddSubagent = () => {
+    if (!selectedAgentName) {
+      return;
+    }
+    if (!isFeatureId(newSubagentName)) {
+      setError('Имя сабагента — kebab-case');
+      return;
+    }
+    setError('');
+    void createSubagent(project, selectedAgentName, newSubagentName)
+      .then((result) => {
+        setAddSubagentOpen(false);
+        setNewSubagentName('');
+        refreshSettingsTree();
+        refreshFeatureTree(`${settingsRoot(project)}/${selectedAgentName}`);
+        loadNode(result.path);
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [node?.path ?? settingsRoot(project)]: true,
+          [settingsRoot(project)]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось создать сабагента');
+      });
+  };
+
+  const runDeleteAgent = () => {
+    if (!selectedAgentName) {
+      return;
+    }
+    setConfirmDeleteAgent(false);
+    void deleteAgent(project, selectedAgentName)
+      .then(() => {
+        refreshSettingsTree();
+        loadNode(settingsRoot(project));
+        setExpanded((current) => ({ ...current, [settingsRoot(project)]: true }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось удалить агента');
+      });
+  };
+
+  const runDeleteSubagent = () => {
+    if (!selectedSubagent) {
+      return;
+    }
+    setConfirmDeleteSubagent(false);
+    const parentPath = `${settingsRoot(project)}/${selectedSubagent.parent}`;
+    void deleteSubagent(project, selectedSubagent.parent, selectedSubagent.name)
+      .then(() => {
+        refreshSettingsTree();
+        loadNode(parentPath);
+        setExpanded((current) => ({
+          ...current,
+          [parentPath]: true,
+          [settingsRoot(project)]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось удалить сабагента');
       });
   };
 
@@ -429,10 +803,12 @@ export const WorkspacePage: FC<Props> = (props) => {
 
   const chooseProject = (name: string) => {
     setProject(name);
-    const path = `docs/${name}`;
+    const path = isSettings ? settingsRoot(name) : `docs/${name}`;
+    setDocument(null);
+    setHighlight(null);
     setExpanded((current) => ({ ...current, [path]: true }));
     loadNode(path);
-    if (!cache[path]) {
+    if (!isSettings && !cache[path]) {
       refreshProjectTree(name);
     }
   };
@@ -454,29 +830,33 @@ export const WorkspacePage: FC<Props> = (props) => {
               ))}
             </select>
           </label>
-          <label>
-            Фича
-            <input
-              className="toolbar-feature-filter-name"
-              value={featureNameFilter}
-              onChange={(event) => setFeatureNameFilter(event.target.value)}
-            />
-          </label>
-          <label>
-            Статус
-            <select
-              value={featureStatusFilter}
-              onChange={(event) =>
-                setFeatureStatusFilter(event.target.value as FeatureStatusFilter)
-              }
-            >
-              {FEATURE_STATUS_FILTER_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {featureStatusFilterLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!isSettings && (
+            <>
+              <label>
+                Фича
+                <input
+                  className="toolbar-feature-filter-name"
+                  value={featureNameFilter}
+                  onChange={(event) => setFeatureNameFilter(event.target.value)}
+                />
+              </label>
+              <label>
+                Статус
+                <select
+                  value={featureStatusFilter}
+                  onChange={(event) =>
+                    setFeatureStatusFilter(event.target.value as FeatureStatusFilter)
+                  }
+                >
+                  {FEATURE_STATUS_FILTER_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {featureStatusFilterLabel(value)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
         </div>
         <div className="toolbar-end">
           <ChangesMenu
@@ -484,40 +864,42 @@ export const WorkspacePage: FC<Props> = (props) => {
             onPublish={requestPublish}
             refreshKey={changesRefresh}
           />
-          <div className="toolbar-sync">
-            <button
-              type="button"
-              className="toolbar-sync-button"
-              aria-label="Синхронизировать"
-              disabled={syncing}
-              onClick={runSync}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
+          {!isSettings && (
+            <div className="toolbar-sync">
+              <button
+                type="button"
+                className="toolbar-sync-button"
+                aria-label="Синхронизировать"
+                disabled={syncing}
+                onClick={runSync}
               >
-                <path
-                  d="M13.5 8A5.5 5.5 0 1 1 8 2.5V1M8 2.5L10.5 5M8 2.5L5.5 5"
-                  stroke="currentColor"
-                  strokeWidth="1.25"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M2.5 8A5.5 5.5 0 1 0 8 13.5V15M8 13.5L5.5 11M8 13.5L10.5 11"
-                  stroke="currentColor"
-                  strokeWidth="1.25"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            <span className="toolbar-sync-countdown">{formatSyncCountdown(syncSeconds)}</span>
-          </div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M13.5 8A5.5 5.5 0 1 1 8 2.5V1M8 2.5L10.5 5M8 2.5L5.5 5"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M2.5 8A5.5 5.5 0 1 0 8 13.5V15M8 13.5L5.5 11M8 13.5L10.5 11"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <span className="toolbar-sync-countdown">{formatSyncCountdown(syncSeconds)}</span>
+            </div>
+          )}
           <ActionsMenu
             icon="burger"
             leading={
@@ -526,7 +908,17 @@ export const WorkspacePage: FC<Props> = (props) => {
                 <ThemeSwitch />
               </>
             }
-            items={[{ label: 'Добавить фичу', onClick: () => setAddFeatureOpen(true) }]}
+            items={
+              isSettings
+                ? [
+                    { label: 'Документация', href: '/' },
+                    { label: 'Добавить Агента', onClick: () => setAddAgentOpen(true) },
+                  ]
+                : [
+                    { label: 'Настройки', href: '/settings' },
+                    { label: 'Добавить фичу', onClick: () => setAddFeatureOpen(true) },
+                  ]
+            }
           />
         </div>
       </header>
@@ -560,6 +952,92 @@ export const WorkspacePage: FC<Props> = (props) => {
           </button>
         </div>
       </Modal>
+      <Modal
+        title="Добавить Агента"
+        open={addAgentOpen}
+        onClose={() => {
+          setAddAgentOpen(false);
+          setNewAgentName('');
+        }}
+      >
+        <label>
+          Имя (kebab-case)
+          <input
+            value={newAgentName}
+            onChange={(event) => setNewAgentName(event.target.value)}
+          />
+        </label>
+        {error && addAgentOpen ? <p className="error">{error}</p> : null}
+        <div className="modal-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setAddAgentOpen(false);
+              setNewAgentName('');
+            }}
+          >
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitAddAgent}>
+            Создать
+          </button>
+        </div>
+      </Modal>
+      <Modal
+        title="Добавить сабагента"
+        open={addSubagentOpen}
+        onClose={() => {
+          setAddSubagentOpen(false);
+          setNewSubagentName('');
+        }}
+      >
+        <label>
+          Имя (kebab-case)
+          <input
+            value={newSubagentName}
+            onChange={(event) => setNewSubagentName(event.target.value)}
+          />
+        </label>
+        {error && addSubagentOpen ? <p className="error">{error}</p> : null}
+        <div className="modal-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setAddSubagentOpen(false);
+              setNewSubagentName('');
+            }}
+          >
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitAddSubagent}>
+            Создать
+          </button>
+        </div>
+      </Modal>
+      <Modal
+        title={
+          renameSettingsKind === 'agent' ? 'Переименовать агента' : 'Переименовать сабагента'
+        }
+        open={renameSettingsOpen}
+        onClose={closeRenameSettings}
+      >
+        <label>
+          Имя (kebab-case)
+          <input
+            value={renameSettingsName}
+            onChange={(event) => setRenameSettingsName(event.target.value)}
+          />
+        </label>
+        {renameSettingsError ? <p className="error">{renameSettingsError}</p> : null}
+        <div className="modal-actions">
+          <button type="button" onClick={closeRenameSettings}>
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitRenameSettings}>
+            Переименовать
+          </button>
+        </div>
+      </Modal>
       <Modal title="Имя фичи" open={renameFeatureOpen} onClose={closeRenameFeature}>
         <label>
           Имя (kebab-case)
@@ -585,6 +1063,22 @@ export const WorkspacePage: FC<Props> = (props) => {
         onClose={() => setConfirmDelete(false)}
         onConfirm={runDeleteFeature}
       />
+      <ConfirmModal
+        title="Удалить агента"
+        message="Удалить агента?"
+        confirmLabel="Удалить"
+        open={confirmDeleteAgent}
+        onClose={() => setConfirmDeleteAgent(false)}
+        onConfirm={runDeleteAgent}
+      />
+      <ConfirmModal
+        title="Удалить сабагента"
+        message="Удалить сабагента?"
+        confirmLabel="Удалить"
+        open={confirmDeleteSubagent}
+        onClose={() => setConfirmDeleteSubagent(false)}
+        onConfirm={runDeleteSubagent}
+      />
       <Modal
         title="Публикация"
         open={confirmPublish}
@@ -602,13 +1096,13 @@ export const WorkspacePage: FC<Props> = (props) => {
       </Modal>
       <aside className="tree-column">
         <div className="tree">
-          {projectPath && (
+          {treeRootPath && (
             <TreeBranch
-              path={projectPath}
-              name={project}
+              path={treeRootPath}
+              name={isSettings ? 'settings' : project}
               depth={0}
               hideRoot
-              featureFilterQuery={featureFilterQuery}
+              featureFilterQuery={isSettings ? undefined : featureFilterQuery}
               expanded={expanded}
               cache={cache}
               selected={selected}
@@ -620,16 +1114,38 @@ export const WorkspacePage: FC<Props> = (props) => {
         </div>
       </aside>
       <section className="pane">
-        {error && <p className="error">{error}</p>}
+        {error && !addAgentOpen && !addSubagentOpen && !renameSettingsOpen ? (
+          <p className="error">{error}</p>
+        ) : null}
         <div className="sheet">
           {node && node.kind !== 'file' && (
             <DirectoryPane
               node={node}
-              featureFilterQuery={featureFilterQuery}
+              featureFilterQuery={isSettings ? { nameQuery: '', status: 'all' } : featureFilterQuery}
               onOpen={loadNode}
               onOpenFile={openFile}
               onRenameFeature={openRenameFeature}
               onDeleteFeature={() => setConfirmDelete(true)}
+              onRenameAgent={openRenameAgent}
+              onDeleteAgent={() => setConfirmDeleteAgent(true)}
+              onAddSubagent={() => setAddSubagentOpen(true)}
+              onRenameSubagent={openRenameSubagent}
+              onDeleteSubagent={() => setConfirmDeleteSubagent(true)}
+            />
+          )}
+          {document && isSettings && settingsSubagentFocus && (
+            <SettingsEntityHeading
+              name={settingsSubagentFocus.name}
+              onRename={openRenameSubagent}
+              onDelete={() => setConfirmDeleteSubagent(true)}
+            />
+          )}
+          {document && isSettings && settingsAgentFocus && (
+            <SettingsEntityHeading
+              name={settingsAgentFocus.name}
+              onRename={openRenameAgent}
+              onDelete={() => setConfirmDeleteAgent(true)}
+              onAddSubagent={() => setAddSubagentOpen(true)}
             />
           )}
           {document && (
@@ -785,6 +1301,35 @@ const TreeBranch: FC<BranchProps> = (props) => {
   );
 };
 
+type SettingsEntityHeadingProps = {
+  name: string;
+  onRename: () => void;
+  onDelete: () => void;
+  onAddSubagent?: () => void;
+};
+
+const SettingsEntityHeading: FC<SettingsEntityHeadingProps> = (props) => {
+  const { name, onRename, onDelete, onAddSubagent } = props;
+  return (
+    <div className="feature-heading">
+      <span className="feature-heading-name">{name}</span>
+      <span className="feature-heading-actions">
+        {onAddSubagent ? (
+          <button type="button" onClick={onAddSubagent}>
+            Добавить сабагента
+          </button>
+        ) : null}
+        <button type="button" onClick={onRename}>
+          Переименовать
+        </button>
+        <button type="button" className="danger" onClick={onDelete}>
+          Удалить
+        </button>
+      </span>
+    </div>
+  );
+};
+
 type PaneProps = {
   node: NodeDescription;
   featureFilterQuery: FeatureFilterQuery;
@@ -792,11 +1337,27 @@ type PaneProps = {
   onOpenFile: (path: string) => void;
   onRenameFeature: (path: string, featureId: string) => void;
   onDeleteFeature: () => void;
+  onRenameAgent: () => void;
+  onDeleteAgent: () => void;
+  onAddSubagent: () => void;
+  onRenameSubagent: () => void;
+  onDeleteSubagent: () => void;
 };
 
 const DirectoryPane: FC<PaneProps> = (props) => {
-  const { node, featureFilterQuery, onOpen, onOpenFile, onRenameFeature, onDeleteFeature } =
-    props;
+  const {
+    node,
+    featureFilterQuery,
+    onOpen,
+    onOpenFile,
+    onRenameFeature,
+    onDeleteFeature,
+    onRenameAgent,
+    onDeleteAgent,
+    onAddSubagent,
+    onRenameSubagent,
+    onDeleteSubagent,
+  } = props;
   const entries =
     node.kind === 'project'
       ? (node.entries ?? []).filter((entry) =>
@@ -805,8 +1366,27 @@ const DirectoryPane: FC<PaneProps> = (props) => {
       : (node.entries ?? []);
   const featureId =
     node.kind === 'feature' ? (node.path.split('/').pop() ?? '') : '';
+  const agentName = isSettingsAgentPath(node.path) ? (node.path.split('/').pop() ?? '') : '';
+  const subagentName = isSettingsSubagentPath(node.path)
+    ? (node.path.split('/').pop() ?? '')
+    : '';
   return (
     <div className="sheet-card">
+      {agentName !== '' && (
+        <SettingsEntityHeading
+          name={agentName}
+          onRename={onRenameAgent}
+          onDelete={onDeleteAgent}
+          onAddSubagent={onAddSubagent}
+        />
+      )}
+      {subagentName !== '' && (
+        <SettingsEntityHeading
+          name={subagentName}
+          onRename={onRenameSubagent}
+          onDelete={onDeleteSubagent}
+        />
+      )}
       {node.kind === 'feature' && (
         <div className="feature-heading">
           <span className="feature-heading-name">{featureId}</span>

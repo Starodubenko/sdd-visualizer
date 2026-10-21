@@ -3,7 +3,8 @@ import { useCloseOnOutside } from './useCloseOnOutside';
 
 type Item = {
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 };
 
 type Props = {
@@ -59,18 +60,28 @@ export const ActionsMenu: FC<Props> = (props) => {
               {leading}
             </div>
           )}
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                item.onClick();
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
+          {items.map((item) =>
+            item.href ? (
+              <a
+                key={item.label}
+                href={item.href}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </a>
+            ) : (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick?.();
+                }}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
         </div>
       )}
     </div>

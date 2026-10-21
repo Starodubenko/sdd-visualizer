@@ -8,6 +8,16 @@ type Props = {
 
 export const App: FC<Props> = (props) => {
   const { data } = props;
+  if (data.page === 'settings') {
+    return (
+      <WorkspacePage
+        mode="settings"
+        projects={data.settings.projects}
+        settingsProject={data.settings.project}
+        settingsEntries={data.settings.entries}
+      />
+    );
+  }
   return (
     <WorkspacePage
       projects={data.workspace.projects}
