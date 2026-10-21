@@ -1,0 +1,21 @@
+feature: order-list
+role: tester
+depends:
+  - analyst.md
+  - designer.md
+  - backend.md
+
+cases:
+  - id: AC-1
+    title: Список открывается
+    surface: ui
+    kind: manual
+    state: success
+    given: есть заказы
+    when: открыть список
+    then: видна таблица
+    code_test: ""
+
+checks:
+  - name: ui
+    command: npm test
