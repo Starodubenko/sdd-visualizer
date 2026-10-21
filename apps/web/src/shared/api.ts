@@ -82,6 +82,15 @@ export const createFeature = (
 export const deleteFeature = (path: string): Promise<{ path: string }> =>
   writeJson(`/api/features?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
 
+export const renameFeature = (
+  path: string,
+  featureId: string,
+): Promise<{ path: string }> =>
+  writeJson('/api/features/rename', {
+    method: 'POST',
+    body: JSON.stringify({ path, featureId }),
+  });
+
 export const moveDocumentStatus = (
   path: string,
   status: 'in_progress' | 'ready' | 'done',
@@ -114,3 +123,16 @@ export const syncProject = (
     method: 'POST',
     body: JSON.stringify({ project }),
   });
+
+export type ChangeEntry = {
+  path: string;
+  status: 'added' | 'modified' | 'deleted';
+};
+
+export type ProjectChanges = {
+  name: string;
+  entries: ChangeEntry[];
+};
+
+export const fetchChanges = (): Promise<{ projects: ProjectChanges[] }> =>
+  fetch('/api/changes').then((response) => readJson(response));

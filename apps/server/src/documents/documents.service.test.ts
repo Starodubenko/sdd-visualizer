@@ -244,6 +244,54 @@ test('список фичи проставляет hasOpenChange по source и�
   assert.equal(backendAfter.hasOpenChange, undefined);
 });
 
+test('renameFeature переименовывает каталог и строку feature в файлах', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const result = await documents.renameFeature('docs/payments/payment-card', 'card-pay');
+  assert.equal(result.path, 'docs/payments/card-pay');
+  await assert.rejects(() => stat(join(root, 'docs/payments/payment-card')));
+  const described = await documents.describe('docs/payments/card-pay');
+  assert.equal(described.kind, 'feature');
+  const analyst = await readFile(
+    join(root, 'docs/payments/card-pay/in-progress/analyst.md'),
+    'utf8',
+  );
+  assert.match(analyst, /^# Карточка платежа/m);
+  assert.match(analyst, /^feature: card-pay$/m);
+  assert.doesNotMatch(analyst, /^feature: payment-card$/m);
+});
+
+test('renameFeature отклоняет некорректное имя', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.renameFeature('docs/payments/payment-card', 'Bad Name'),
+    (error: unknown) =>
+      error instanceof BadRequestException &&
+      error.message === 'Имя фичи — kebab-case',
+  );
+  await stat(join(root, 'docs/payments/payment-card'));
+});
+
+test('renameFeature отклоняет конфликт с существующей фичей', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  await assert.rejects(
+    () => documents.renameFeature('docs/payments/payment-card', 'order-list'),
+    (error: unknown) =>
+      error instanceof BadRequestException && error.message === 'Фича уже существует',
+  );
+  await stat(join(root, 'docs/payments/payment-card'));
+});
+
+test('renameFeature на то же имя не трогает каталог', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const result = await documents.renameFeature('docs/payments/payment-card', 'payment-card');
+  assert.equal(result.path, 'docs/payments/payment-card');
+  await stat(join(root, 'docs/payments/payment-card'));
+});
+
 test('внутри фичи вложенные каталоги без статуса не получают точку в list', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);

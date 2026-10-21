@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 import { DocumentView } from '../../features/document-view/DocumentView';
+import { ChangesMenu } from '../../features/changes-menu/ChangesMenu';
 import { ThemeSwitch } from '../../features/theme/ThemeSwitch';
 import { ActionsMenu } from '../../shared/ActionsMenu';
 import {
   createFeature,
   deleteFeature,
+  renameFeature,
   fetchDocument,
   fetchNode,
   fetchTree,
@@ -82,12 +84,16 @@ export const WorkspacePage: FC<Props> = (props) => {
   const [error, setError] = useState('');
   const [addFeatureOpen, setAddFeatureOpen] = useState(false);
   const [newFeatureId, setNewFeatureId] = useState('');
+  const [renameFeatureOpen, setRenameFeatureOpen] = useState(false);
+  const [renameFeatureId, setRenameFeatureId] = useState('');
+  const [renameFeaturePath, setRenameFeaturePath] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [featureNameFilter, setFeatureNameFilter] = useState('');
   const [featureStatusFilter, setFeatureStatusFilter] = useState<FeatureStatusFilter>('all');
   const [syncSeconds, setSyncSeconds] = useState(60);
   const [syncing, setSyncing] = useState(false);
+  const [changesRefresh, setChangesRefresh] = useState(0);
 
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -146,6 +152,23 @@ export const WorkspacePage: FC<Props> = (props) => {
     void fetchTree(path).then((entries) => {
       setCache((current) => ({ ...current, [path]: entries }));
     });
+  };
+
+  const openChangeFile = (projectName: string, relativePath: string) => {
+    setProject(projectName);
+    const projectDir = `docs/${projectName}`;
+    const parts = relativePath.split('/').filter(Boolean);
+    setExpanded((current) => {
+      const next = { ...current, [projectDir]: true };
+      let prefix = projectDir;
+      for (let i = 0; i < parts.length - 1; i += 1) {
+        prefix = `${prefix}/${parts[i]}`;
+        next[prefix] = true;
+      }
+      return next;
+    });
+    refreshProjectTree(projectName);
+    openFile(`${projectDir}/${relativePath}`);
   };
 
   const refreshFeatureTree = (featurePath: string) => {
@@ -208,6 +231,7 @@ export const WorkspacePage: FC<Props> = (props) => {
     void syncProject(name)
       .then(() => {
         refreshOpenScreenRef.current();
+        setChangesRefresh((current) => current + 1);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось синхронизировать');
@@ -254,6 +278,9 @@ export const WorkspacePage: FC<Props> = (props) => {
       const proj = projectRef.current;
       const docPath = documentRef.current?.path;
       const prefix = proj ? `docs/${proj}/` : '';
+      if (paths.some((path) => path.startsWith('docs/'))) {
+        setChangesRefresh((current) => current + 1);
+      }
       const shouldRefresh = paths.some(
         (path) => path === docPath || (prefix !== '' && path.startsWith(prefix)),
       );
@@ -292,13 +319,47 @@ export const WorkspacePage: FC<Props> = (props) => {
       });
   };
 
-  const requestDeleteFeature = () => {
-    if (!selectedFeaturePath) {
-      setError('Выберите фичу');
+  const openRenameFeature = (path: string, featureId: string) => {
+    setRenameFeaturePath(path);
+    setRenameFeatureId(featureId);
+    setError('');
+    setRenameFeatureOpen(true);
+  };
+
+  const closeRenameFeature = () => {
+    setRenameFeatureOpen(false);
+    setRenameFeatureId('');
+    setRenameFeaturePath('');
+  };
+
+  const submitRenameFeature = () => {
+    if (!renameFeaturePath || !project) {
+      return;
+    }
+    const currentId = renameFeaturePath.split('/').pop() ?? '';
+    if (renameFeatureId === currentId) {
+      closeRenameFeature();
+      return;
+    }
+    if (!isFeatureId(renameFeatureId)) {
+      setError('Имя фичи — kebab-case');
       return;
     }
     setError('');
-    setConfirmDelete(true);
+    void renameFeature(renameFeaturePath, renameFeatureId)
+      .then((result) => {
+        closeRenameFeature();
+        refreshProjectTree(project);
+        loadNode(result.path);
+        setExpanded((current) => ({
+          ...current,
+          [result.path]: true,
+          [projectPath]: true,
+        }));
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось переименовать фичу');
+      });
   };
 
   const runDeleteFeature = () => {
@@ -330,9 +391,13 @@ export const WorkspacePage: FC<Props> = (props) => {
       return;
     }
     setConfirmPublish(false);
-    void publishProject(project).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : 'Не удалось опубликовать');
-    });
+    void publishProject(project)
+      .then(() => {
+        setChangesRefresh((current) => current + 1);
+      })
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Не удалось опубликовать');
+      });
   };
 
   const onAfterStatusMove = (newPath: string) => {
@@ -405,6 +470,7 @@ export const WorkspacePage: FC<Props> = (props) => {
           </label>
         </div>
         <div className="toolbar-end">
+          <ChangesMenu onOpenFile={openChangeFile} refreshKey={changesRefresh} />
           <div className="toolbar-sync">
             <button
               type="button"
@@ -442,7 +508,6 @@ export const WorkspacePage: FC<Props> = (props) => {
           <ActionsMenu
             items={[
               { label: 'Добавить фичу', onClick: () => setAddFeatureOpen(true) },
-              { label: 'Удалить фичу', onClick: requestDeleteFeature },
               { label: 'Опубликовать', onClick: requestPublish },
             ]}
           />
@@ -476,6 +541,23 @@ export const WorkspacePage: FC<Props> = (props) => {
           </button>
           <button type="button" className="primary" onClick={submitAddFeature}>
             Создать
+          </button>
+        </div>
+      </Modal>
+      <Modal title="Имя фичи" open={renameFeatureOpen} onClose={closeRenameFeature}>
+        <label>
+          Имя (kebab-case)
+          <input
+            value={renameFeatureId}
+            onChange={(event) => setRenameFeatureId(event.target.value)}
+          />
+        </label>
+        <div className="modal-actions">
+          <button type="button" onClick={closeRenameFeature}>
+            Отмена
+          </button>
+          <button type="button" className="primary" onClick={submitRenameFeature}>
+            Сохранить
           </button>
         </div>
       </Modal>
@@ -523,6 +605,8 @@ export const WorkspacePage: FC<Props> = (props) => {
               featureFilterQuery={featureFilterQuery}
               onOpen={loadNode}
               onOpenFile={openFile}
+              onRenameFeature={openRenameFeature}
+              onDeleteFeature={() => setConfirmDelete(true)}
             />
           )}
           {document && (
@@ -683,18 +767,37 @@ type PaneProps = {
   featureFilterQuery: FeatureFilterQuery;
   onOpen: (path: string) => void;
   onOpenFile: (path: string) => void;
+  onRenameFeature: (path: string, featureId: string) => void;
+  onDeleteFeature: () => void;
 };
 
 const DirectoryPane: FC<PaneProps> = (props) => {
-  const { node, featureFilterQuery, onOpen, onOpenFile } = props;
+  const { node, featureFilterQuery, onOpen, onOpenFile, onRenameFeature, onDeleteFeature } =
+    props;
   const entries =
     node.kind === 'project'
       ? (node.entries ?? []).filter((entry) =>
           featureMatchesFilter(entry.name, entry.status, featureFilterQuery),
         )
       : (node.entries ?? []);
+  const featureId =
+    node.kind === 'feature' ? (node.path.split('/').pop() ?? '') : '';
   return (
     <div className="sheet-card">
+      {node.kind === 'feature' && (
+        <div className="feature-heading">
+          <span className="feature-heading-name">{featureId}</span>
+          <button
+            type="button"
+            onClick={() => onRenameFeature(node.path, featureId)}
+          >
+            Редактировать
+          </button>
+          <button type="button" onClick={onDeleteFeature}>
+            Удалить
+          </button>
+        </div>
+      )}
       {node.kind === 'feature' && node.status && (
         <p>
           <span className={statusTagClass(node.status)}>{statusLabel(node.status)}</span>

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import { basename, dirname, join } from 'path';
 import { featureStatus, type FeatureFile } from './feature-status';
 import {
@@ -280,6 +280,48 @@ export class DocumentsService {
     clearTreeCache();
   }
 
+  async renameFeature(relativePath: string, featureId: string): Promise<{ path: string }> {
+    const description = await this.describe(relativePath);
+    if (description.kind !== 'feature') {
+      throw new BadRequestException('Переименовывать можно только каталог фичи');
+    }
+    if (!isFeatureId(featureId)) {
+      throw new BadRequestException('Имя фичи — kebab-case');
+    }
+    const parts = relativePath.split('/').filter(Boolean);
+    const project = parts[1];
+    const oldId = parts[2];
+    if (oldId === featureId) {
+      return { path: relativePath };
+    }
+    const projectDir = resolveDocsPath(this.root, `docs/${project}`);
+    const oldAbsolute = resolveDocsPath(this.root, relativePath);
+    const newAbsolute = join(projectDir, featureId);
+    const existing = await stat(newAbsolute).catch(() => null);
+    if (existing) {
+      throw new BadRequestException('Фича уже существует');
+    }
+    await rename(oldAbsolute, newAbsolute);
+    const newRelative = `docs/${project}/${featureId}`;
+    await this.walkFeatureFiles(newAbsolute, async (filePath) => {
+      const content = await readFile(filePath, 'utf8');
+      const lines = content.split('\n');
+      let changed = false;
+      const nextLines = lines.map((line) => {
+        if (line.trim() === `feature: ${oldId}`) {
+          changed = true;
+          return `feature: ${featureId}`;
+        }
+        return line;
+      });
+      if (changed) {
+        await writeFile(filePath, nextLines.join('\n'), 'utf8');
+      }
+    });
+    clearTreeCache();
+    return { path: newRelative };
+  }
+
   async saveAsset(
     featurePath: string,
     originalName: string,
@@ -371,6 +413,21 @@ export class DocumentsService {
       statusSegment !== DONE_DIR
     ) {
       throw new BadRequestException('Путь не является файлом спеки');
+    }
+  }
+
+  private async walkFeatureFiles(
+    absoluteDir: string,
+    visit: (filePath: string) => Promise<void>,
+  ): Promise<void> {
+    const entries = await readdir(absoluteDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(absoluteDir, entry.name);
+      if (entry.isDirectory()) {
+        await this.walkFeatureFiles(fullPath, visit);
+      } else if (entry.isFile()) {
+        await visit(fullPath);
+      }
     }
   }
 

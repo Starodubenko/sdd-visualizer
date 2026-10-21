@@ -113,6 +113,121 @@ body {
   justify-content: flex-end;
 }
 
+.changes-menu {
+  position: relative;
+}
+
+.toolbar-changes-button {
+  padding: 0 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar-changes-button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+button.toolbar-changes-button.has-changes:not(.tree-row) {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+button.toolbar-changes-button.has-changes:not(.tree-row):hover {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.changes-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  min-width: 280px;
+  max-height: 360px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.changes-message {
+  margin: 0;
+  padding: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.changes-error {
+  color: var(--bad);
+}
+
+.changes-project-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.changes-dir-name {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.changes-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  font-size: 12.5px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.changes-file-button {
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.changes-file-button:hover {
+  background: var(--ground);
+}
+
+.changes-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changes-status-added {
+  color: var(--ok);
+  flex-shrink: 0;
+}
+
+.changes-status-modified {
+  color: var(--warn);
+  flex-shrink: 0;
+}
+
+.changes-status-deleted {
+  color: var(--bad);
+  flex-shrink: 0;
+}
+
 .toolbar-sync {
   display: inline-flex;
   align-items: center;
@@ -214,6 +329,18 @@ body {
   min-height: 100%;
 }
 
+.feature-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.feature-heading-name {
+  font: 600 16px/22px "IBM Plex Sans", sans-serif;
+  color: var(--ink);
+}
+
 .document .sheet-card {
   flex: 1;
   min-height: 0;
@@ -253,6 +380,79 @@ button[aria-pressed='true']:not(.tree-row) {
   background: var(--val-soft);
   border-color: var(--val);
   color: var(--val);
+}
+
+button.theme-switch:not(.tree-row) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+button.theme-switch:not(.tree-row):hover {
+  border-color: transparent;
+  color: inherit;
+  background: transparent;
+}
+
+.theme-switch-track {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  box-sizing: border-box;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+button.theme-switch[aria-checked='true']:not(.tree-row) .theme-switch-track {
+  background: var(--val);
+  border-color: var(--val);
+}
+
+.theme-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 1px 2px rgb(20 26 41 / 12%), 0 1px 4px rgb(20 26 41 / 8%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+}
+
+button.theme-switch[aria-checked='true']:not(.tree-row) .theme-switch-thumb {
+  transform: translateX(20px);
+}
+
+.theme-switch-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.theme-switch-icon--sun {
+  color: var(--warn);
+}
+
+.theme-switch-icon--moon {
+  color: var(--done);
 }
 
 button:focus-visible {

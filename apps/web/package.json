@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "vite build --config vite.client.config.ts && vite build --config vite.ssr.config.ts",
-    "test": "node --import tsx --test src/features/document-view/*.test.ts src/pages/Workspace/*.test.ts"
+    "test": "node --import tsx --test src/features/document-view/*.test.ts src/features/changes-menu/*.test.ts src/pages/Workspace/*.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

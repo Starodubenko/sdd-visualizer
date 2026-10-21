@@ -20,6 +20,8 @@ export const copyDocsProject = (fromRoot: string, toRoot: string, project: strin
   cpSync(src, dest, { recursive: true });
 };
 
+const toPosixPath = (rel: string): string => rel.split('\\').join('/');
+
 const listFiles = (dir: string, base = dir): string[] => {
   if (!existsSync(dir)) {
     return [];
@@ -28,7 +30,7 @@ const listFiles = (dir: string, base = dir): string[] => {
   const files: string[] = [];
   for (const name of entries) {
     const full = join(dir, name);
-    const rel = full.slice(base.length + 1);
+    const rel = toPosixPath(full.slice(base.length + 1));
     if (statSync(full).isDirectory()) {
       files.push(...listFiles(full, base));
     } else {
@@ -36,6 +38,44 @@ const listFiles = (dir: string, base = dir): string[] => {
     }
   }
   return files.sort();
+};
+
+export type DocsProjectChangeStatus = 'added' | 'modified' | 'deleted';
+
+export type DocsProjectChange = {
+  path: string;
+  status: DocsProjectChangeStatus;
+};
+
+export const diffDocsProject = (
+  workspaceRoot: string,
+  baselineRoot: string,
+  project: string,
+): DocsProjectChange[] => {
+  const workspaceBase = docsProjectPath(workspaceRoot, project);
+  const baselineBase = docsProjectPath(baselineRoot, project);
+  const workspaceFiles = listFiles(workspaceBase);
+  const baselineFiles = listFiles(baselineBase);
+  const workspaceSet = new Set(workspaceFiles);
+  const baselineSet = new Set(baselineFiles);
+  const allPaths = [...new Set([...workspaceFiles, ...baselineFiles])].sort();
+  const changes: DocsProjectChange[] = [];
+  for (const path of allPaths) {
+    const inWorkspace = workspaceSet.has(path);
+    const inBaseline = baselineSet.has(path);
+    if (inWorkspace && !inBaseline) {
+      changes.push({ path, status: 'added' });
+    } else if (!inWorkspace && inBaseline) {
+      changes.push({ path, status: 'deleted' });
+    } else if (inWorkspace && inBaseline) {
+      const workspaceText = readFileSync(join(workspaceBase, path));
+      const baselineText = readFileSync(join(baselineBase, path));
+      if (!workspaceText.equals(baselineText)) {
+        changes.push({ path, status: 'modified' });
+      }
+    }
+  }
+  return changes;
 };
 
 export const docsProjectTreesEqual = (aRoot: string, bRoot: string, project: string): boolean => {

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { GitRoot } from '../git-root';
 import { WorkspaceRoot } from '../workspace-root';
+import { ChangesService } from './changes.service';
 import { PublishController } from './publish.controller';
 import { PublishService } from './publish.service';
 import { SyncService } from './sync.service';
@@ -27,6 +28,16 @@ import { SyncService } from './sync.service';
           throw new Error('Git root not found');
         }
         return new SyncService(workspace.root, gitRoot.root);
+      },
+      inject: [WorkspaceRoot, GitRoot],
+    },
+    {
+      provide: ChangesService,
+      useFactory: (workspace: WorkspaceRoot, gitRoot: GitRoot) => {
+        if (!gitRoot.root) {
+          throw new Error('Git root not found');
+        }
+        return new ChangesService(workspace.root, gitRoot.root);
       },
       inject: [WorkspaceRoot, GitRoot],
     },

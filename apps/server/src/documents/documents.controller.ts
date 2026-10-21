@@ -36,6 +36,11 @@ class FeatureBody {
   featureId = '';
 }
 
+class RenameFeatureBody {
+  path = '';
+  featureId = '';
+}
+
 class UpdateBody {
   path = '';
   section = '';
@@ -83,6 +88,11 @@ export class DocumentsController {
   @Post('features')
   create(@Body() body: FeatureBody) {
     return this.documents.createFeature(body.project, body.featureId);
+  }
+
+  @Post('features/rename')
+  rename(@Body() body: RenameFeatureBody) {
+    return this.documents.renameFeature(body.path, body.featureId);
   }
 
   @Post('updates')

@@ -1,4 +1,5 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
+import { ChangesService } from './changes.service';
 import { PublishService } from './publish.service';
 import { SyncService } from './sync.service';
 
@@ -11,7 +12,13 @@ export class PublishController {
   constructor(
     private readonly publishService: PublishService,
     private readonly syncService: SyncService,
+    private readonly changesService: ChangesService,
   ) {}
+
+  @Get('changes')
+  changes() {
+    return this.changesService.list();
+  }
 
   @Post('publish')
   publish(@Body() body: ProjectBody) {
