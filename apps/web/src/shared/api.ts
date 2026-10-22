@@ -39,6 +39,14 @@ export type PageData =
         path: string;
         open: string[];
       };
+    }
+  | {
+      page: 'method';
+      method: {
+        entries: TreeEntry[];
+        path: string;
+        open: string[];
+      };
     };
 
 const errorMessageFromBody = (text: string): string => {

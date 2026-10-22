@@ -20,6 +20,16 @@ export const App: FC<Props> = (props) => {
       />
     );
   }
+  if (data.page === 'method') {
+    return (
+      <WorkspacePage
+        mode="method"
+        methodEntries={data.method.entries}
+        initialPath={data.method.path}
+        initialOpen={data.method.open}
+      />
+    );
+  }
   return (
     <WorkspacePage
       projects={data.workspace.projects}

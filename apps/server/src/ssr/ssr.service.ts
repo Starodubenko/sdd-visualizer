@@ -23,6 +23,14 @@ export type PageData =
         path: string;
         open: string[];
       };
+    }
+  | {
+      page: 'method';
+      method: {
+        entries: { name: string; kind: 'dir' | 'file' }[];
+        path: string;
+        open: string[];
+      };
     };
 
 type ServerEntry = {
@@ -44,6 +52,20 @@ export class SsrService {
       workspace: {
         projects,
         featureEntries,
+        path: safePath,
+        open: this.safeOpen(open, root),
+      },
+    };
+  }
+
+  async methodData(path = '', open: string[] = []): Promise<PageData> {
+    const root = 'docs/method';
+    const safePath = path === root || path.startsWith(`${root}/`) ? path : root;
+    const entries = await this.documents.list(root).catch(() => []);
+    return {
+      page: 'method',
+      method: {
+        entries,
         path: safePath,
         open: this.safeOpen(open, root),
       },

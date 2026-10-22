@@ -66,6 +66,8 @@ const FEATURE_STATUS_FILTER_OPTIONS: FeatureStatusFilter[] = [
 const featureStatusFilterLabel = (value: FeatureStatusFilter): string =>
   value === 'all' ? 'Все' : statusLabel(value);
 
+const METHOD_ROOT = 'docs/method';
+
 const settingsRoot = (projectName: string): string => `docs/${projectName}/settings`;
 
 const openShownFile = (path: string): Promise<{ path: string; content: string }> => {
@@ -144,6 +146,12 @@ type Props =
       settingsEntries: TreeEntry[];
       initialPath?: string;
       initialOpen?: string[];
+    }
+  | {
+      mode: 'method';
+      methodEntries: TreeEntry[];
+      initialPath?: string;
+      initialOpen?: string[];
     };
 
 type Cache = Record<string, TreeEntry[]>;
@@ -154,24 +162,32 @@ const initialProjectPath = (projects: string[]): string =>
   projects[0] ? `docs/${projects[0]}` : '';
 
 export const WorkspacePage: FC<Props> = (props) => {
-  const isSettings = props.mode === 'settings';
-  const projects = props.projects;
-  const featureEntries = isSettings ? [] : props.featureEntries;
+  const mode = props.mode ?? 'workspace';
+  const isSettings = mode === 'settings';
+  const isMethod = mode === 'method';
+  const isWorkspace = mode === 'workspace';
+  const projects = isMethod ? [] : props.projects;
+  const featureEntries = isWorkspace ? props.featureEntries : [];
   const settingsEntries = isSettings ? props.settingsEntries : [];
+  const methodEntries = isMethod ? props.methodEntries : [];
   const requestedPath = props.initialPath ?? '';
   const requestedProject = requestedPath.split('/').filter((part) => part !== '')[1] ?? '';
-  const initialProject = projects.includes(requestedProject)
-    ? requestedProject
+  const initialProject = isMethod
+    ? ''
+    : projects.includes(requestedProject)
+      ? requestedProject
+      : isSettings
+        ? props.settingsProject || projects[0] || ''
+        : projects[0] ?? '';
+  const initialTreePath = isMethod
+    ? METHOD_ROOT
     : isSettings
-      ? props.settingsProject || projects[0] || ''
-      : projects[0] ?? '';
-  const initialTreePath = isSettings
-    ? initialProject
-      ? settingsRoot(initialProject)
-      : ''
-    : initialProject
-      ? initialProjectPath([initialProject])
-      : '';
+      ? initialProject
+        ? settingsRoot(initialProject)
+        : ''
+      : initialProject
+        ? initialProjectPath([initialProject])
+        : '';
   const selectedPath =
     initialTreePath &&
     (requestedPath === initialTreePath || requestedPath.startsWith(`${initialTreePath}/`))
@@ -191,9 +207,21 @@ export const WorkspacePage: FC<Props> = (props) => {
       initialExpanded[prefix] = true;
     }
   }
-  const initialTreeEntries = isSettings ? settingsEntries : featureEntries;
+  const initialTreeEntries = isMethod
+    ? methodEntries
+    : isSettings
+      ? settingsEntries
+      : featureEntries;
   const [project, setProject] = useState(initialProject);
-  const treeRootPath = isSettings ? (project ? settingsRoot(project) : '') : project ? `docs/${project}` : '';
+  const treeRootPath = isMethod
+    ? METHOD_ROOT
+    : isSettings
+      ? project
+        ? settingsRoot(project)
+        : ''
+      : project
+        ? `docs/${project}`
+        : '';
   const [expanded, setExpanded] = useState<Record<string, boolean>>(initialExpanded);
   const [cache, setCache] = useState<Cache>(() => {
     return initialTreePath ? { [initialTreePath]: initialTreeEntries } : {};
@@ -205,7 +233,7 @@ export const WorkspacePage: FC<Props> = (props) => {
     }
     return {
       path: initialTreePath,
-      kind: isSettings ? 'directory' : 'project',
+      kind: isSettings || isMethod ? 'directory' : 'project',
       entries: initialTreeEntries,
     };
   });
@@ -324,13 +352,13 @@ export const WorkspacePage: FC<Props> = (props) => {
       return;
     }
     const search = buildTreeSearch({
-      project,
+      project: isMethod ? '' : project,
       path: selected,
       open: expandedPaths(expanded, selected).filter(
         (item) => item === treeRootPath || item.startsWith(`${treeRootPath}/`),
       ),
     });
-    const base = isSettings ? '/settings' : '/';
+    const base = isSettings ? '/settings' : isMethod ? '/method' : '/';
     const next = `${base}${search}`;
     const current = `${window.location.pathname}${window.location.search}`;
     if (current === next) {
@@ -340,10 +368,56 @@ export const WorkspacePage: FC<Props> = (props) => {
     const method = lastUrlPath.current === selected ? 'replaceState' : 'pushState';
     lastUrlPath.current = selected;
     window.history[method](null, '', next);
-  }, [expanded, isSettings, project, selected]);
+  }, [expanded, isMethod, isSettings, project, selected, treeRootPath]);
 
   useEffect(() => {
     const applyLocation = () => {
+      if (isMethod) {
+        const parsed = parseTreeUrl(window.location.search);
+        const root = METHOD_ROOT;
+        const path =
+          parsed.path === root || parsed.path.startsWith(`${root}/`) ? parsed.path : root;
+        const open: Record<string, boolean> = { [root]: true };
+        for (const item of [...parsed.open, ...directoryPrefixes(path)]) {
+          if (item === root || item.startsWith(`${root}/`)) {
+            open[item] = true;
+          }
+        }
+        ignoreUrlWrite.current = true;
+        setSelected(path);
+        setExpanded(open);
+        setHighlight(null);
+        setError('');
+        if (isDocumentPath(path)) {
+          setNode(null);
+          setDocument(null);
+          void openShownFile(path)
+            .then(setDocument)
+            .catch((reason: unknown) => {
+              setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
+            });
+        } else {
+          setDocument(null);
+          void fetchNode(path)
+            .then((next) => {
+              setNode(next);
+              if (next.entries) {
+                setCache((current) => ({ ...current, [path]: next.entries ?? [] }));
+              }
+            })
+            .catch((reason: unknown) => {
+              setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
+            });
+        }
+        for (const dir of Object.keys(open)) {
+          void fetchTree(dir)
+            .then((entries) => {
+              setCache((current) => (current[dir] ? current : { ...current, [dir]: entries }));
+            })
+            .catch(() => undefined);
+        }
+        return;
+      }
       const parsed = parseTreeUrl(window.location.search);
       const name = projects.includes(parsed.project)
         ? parsed.project
@@ -398,7 +472,7 @@ export const WorkspacePage: FC<Props> = (props) => {
     };
     window.addEventListener('popstate', applyLocation);
     return () => window.removeEventListener('popstate', applyLocation);
-  }, [isSettings, project, projects]);
+  }, [isMethod, isSettings, project, projects]);
 
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -416,7 +490,7 @@ export const WorkspacePage: FC<Props> = (props) => {
   };
 
   useEffect(() => {
-    if (isSettings || !treeRootPath || !isFeatureFilterActive(featureFilterQuery)) {
+    if (!isWorkspace || !treeRootPath || !isFeatureFilterActive(featureFilterQuery)) {
       return;
     }
     const epics = cache[treeRootPath] ?? [];
@@ -434,7 +508,7 @@ export const WorkspacePage: FC<Props> = (props) => {
         );
       });
     }
-  }, [cache, epicNameFilter, featureFilterQuery, isSettings, treeRootPath]);
+  }, [cache, epicNameFilter, featureFilterQuery, isWorkspace, treeRootPath]);
 
   const loadNode = (path: string) => {
     setSelected(path);
@@ -484,6 +558,12 @@ export const WorkspacePage: FC<Props> = (props) => {
     const rootPath = settingsRoot(project);
     void fetchTree(rootPath).then((entries) => {
       setCache((current) => ({ ...current, [rootPath]: entries }));
+    });
+  };
+
+  const refreshMethodTree = () => {
+    void fetchTree(METHOD_ROOT).then((entries) => {
+      setCache((current) => ({ ...current, [METHOD_ROOT]: entries }));
     });
   };
 
@@ -552,6 +632,31 @@ export const WorkspacePage: FC<Props> = (props) => {
   };
 
   const refreshOpenScreen = useCallback(() => {
+    if (isMethod) {
+      refreshMethodTree();
+      const currentSelected = selectedRef.current;
+      const currentNode = nodeRef.current;
+      const currentDocument = documentRef.current;
+      if (currentDocument) {
+        void openShownFile(currentDocument.path)
+          .then(setDocument)
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
+          });
+      } else if (currentNode && currentNode.kind !== 'file') {
+        void fetchNode(currentSelected)
+          .then((next) => {
+            setNode(next);
+            if (next.entries) {
+              setCache((current) => ({ ...current, [currentSelected]: next.entries ?? [] }));
+            }
+          })
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
+          });
+      }
+      return;
+    }
     if (isSettings) {
       refreshSettingsTree();
       const currentSelected = selectedRef.current;
@@ -610,7 +715,7 @@ export const WorkspacePage: FC<Props> = (props) => {
           setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
         });
     }
-  }, [isSettings]);
+  }, [isMethod, isSettings, project]);
 
   const refreshOpenScreenRef = useRef(refreshOpenScreen);
   refreshOpenScreenRef.current = refreshOpenScreen;
@@ -646,7 +751,7 @@ export const WorkspacePage: FC<Props> = (props) => {
   runSyncRef.current = runSync;
 
   useEffect(() => {
-    if (isSettings) {
+    if (isSettings || isMethod) {
       return undefined;
     }
     const id = window.setInterval(() => {
@@ -662,7 +767,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [isSettings]);
+  }, [isMethod, isSettings]);
 
   useEffect(() => {
     const source = new EventSource('/api/events');
@@ -678,7 +783,13 @@ export const WorkspacePage: FC<Props> = (props) => {
         return;
       }
       const docPath = documentRef.current?.path;
-      const prefix = isSettings ? `${settingsRoot(projectRef.current)}/` : projectRef.current ? `docs/${projectRef.current}/` : '';
+      const prefix = isMethod
+        ? `${METHOD_ROOT}/`
+        : isSettings
+          ? `${settingsRoot(projectRef.current)}/`
+          : projectRef.current
+            ? `docs/${projectRef.current}/`
+            : '';
       if (paths.some((path) => path.startsWith('docs/'))) {
         setChangesRefresh((current) => current + 1);
       }
@@ -690,7 +801,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       }
     };
     return () => source.close();
-  }, [isSettings]);
+  }, [isMethod, isSettings]);
 
   const selectedFeaturePath = resolveFeaturePath(
     selected,
@@ -1265,19 +1376,27 @@ export const WorkspacePage: FC<Props> = (props) => {
       {toast && <Toast kind={toast.kind} message={toast.message} />}
       <header className="toolbar">
         <div className="toolbar-start">
-          <strong>{isSettings ? 'Визуализатор: Настройки' : 'Визуализатор: Документация'}</strong>
-          <label>
-            Проект
-            <select value={project} onChange={(event) => chooseProject(event.target.value)}>
-              {projects.length === 0 && <option value="">Нет проектов</option>}
-              {projects.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!isSettings && (
+          <strong>
+            {isSettings
+              ? 'Визуализатор: Настройки'
+              : isMethod
+                ? 'Визуализатор: Теория'
+                : 'Визуализатор: Документация'}
+          </strong>
+          {!isMethod && (
+            <label>
+              Проект
+              <select value={project} onChange={(event) => chooseProject(event.target.value)}>
+                {projects.length === 0 && <option value="">Нет проектов</option>}
+                {projects.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {isWorkspace && (
             <>
               <label>
                 Эпик
@@ -1319,7 +1438,7 @@ export const WorkspacePage: FC<Props> = (props) => {
             onPublish={requestPublish}
             refreshKey={changesRefresh}
           />
-          {!isSettings && (
+          {isWorkspace && (
             <div className="toolbar-sync">
               <button
                 type="button"
@@ -1364,17 +1483,24 @@ export const WorkspacePage: FC<Props> = (props) => {
               </>
             }
             items={
-              isSettings
+              isMethod
                 ? [
                     { label: 'Документация', href: '/' },
-                    { label: 'Добавить Агента', onClick: () => setAddAgentOpen(true) },
-                    { label: 'Скопировать агентов', onClick: openCopyAgents },
-                  ]
-                : [
                     { label: 'Настройки', href: '/settings' },
-                    { label: 'Добавить эпик', onClick: () => setAddEpicOpen(true) },
-                    { label: 'Добавить ссылку на документацию', onClick: openDocLink },
                   ]
+                : isSettings
+                  ? [
+                      { label: 'Документация', href: '/' },
+                      { label: 'Теория', href: '/method' },
+                      { label: 'Добавить Агента', onClick: () => setAddAgentOpen(true) },
+                      { label: 'Скопировать агентов', onClick: openCopyAgents },
+                    ]
+                  : [
+                      { label: 'Настройки', href: '/settings' },
+                      { label: 'Теория', href: '/method' },
+                      { label: 'Добавить эпик', onClick: () => setAddEpicOpen(true) },
+                      { label: 'Добавить ссылку на документацию', onClick: openDocLink },
+                    ]
             }
           />
         </div>
@@ -1705,12 +1831,12 @@ export const WorkspacePage: FC<Props> = (props) => {
           {treeRootPath && (
             <TreeBranch
               path={treeRootPath}
-              name={isSettings ? 'settings' : project}
+              name={isSettings ? 'settings' : isMethod ? 'method' : project}
               depth={0}
               hideRoot
-              filterMode={isSettings ? undefined : 'epics'}
-              epicNameQuery={isSettings ? '' : epicNameFilter}
-              featureFilterQuery={isSettings ? undefined : featureFilterQuery}
+              filterMode={isWorkspace ? 'epics' : undefined}
+              epicNameQuery={isWorkspace ? epicNameFilter : ''}
+              featureFilterQuery={isWorkspace ? featureFilterQuery : undefined}
               expanded={expanded}
               cache={cache}
               selected={selected}
@@ -1735,8 +1861,10 @@ export const WorkspacePage: FC<Props> = (props) => {
           {node && node.kind !== 'file' && (
             <DirectoryPane
               node={node}
-              epicNameQuery={isSettings ? '' : epicNameFilter}
-              featureFilterQuery={isSettings ? { nameQuery: '', status: 'all' } : featureFilterQuery}
+              epicNameQuery={isWorkspace ? epicNameFilter : ''}
+              featureFilterQuery={
+                isWorkspace ? featureFilterQuery : { nameQuery: '', status: 'all' }
+              }
               onOpen={loadNode}
               onOpenFile={openFile}
               onAddFeature={openAddFeature}

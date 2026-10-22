@@ -14,7 +14,11 @@ export const Document: FC<Props> = (props) => {
       <head>
         <meta charSet="utf-8" />
         <title>
-          {data.page === 'settings' ? 'Визуализатор: Настройки' : 'Визуализатор: Документация'}
+          {data.page === 'settings'
+            ? 'Визуализатор: Настройки'
+            : data.page === 'method'
+              ? 'Визуализатор: Теория'
+              : 'Визуализатор: Документация'}
         </title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />

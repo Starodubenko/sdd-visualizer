@@ -23,6 +23,16 @@ export class SsrController {
     await this.ssr.render(response, data);
   }
 
+  @Get('method')
+  async method(
+    @Query('path') path: string | undefined,
+    @Query('open') open: string | string[] | undefined,
+    @Res() response: Response,
+  ) {
+    const data = await this.ssr.methodData(path ?? '', queryList(open));
+    await this.ssr.render(response, data);
+  }
+
   @Get('settings')
   async settings(
     @Query('project') project: string | undefined,
