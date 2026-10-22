@@ -11,6 +11,7 @@ type Props = {
   addDisabled: boolean;
   onOpenUpdate: (path: string) => void;
   onAddChange: () => void;
+  onEdit: (() => void) | null;
 };
 
 const stopSummaryToggle = (event: MouseEvent): void => {
@@ -29,6 +30,7 @@ export const CollapserSummary: FC<Props> = (props) => {
     addDisabled,
     onOpenUpdate,
     onAddChange,
+    onEdit,
   } = props;
   const appliedLinkLabel =
     updateTimestampPrefix !== null
@@ -43,8 +45,21 @@ export const CollapserSummary: FC<Props> = (props) => {
   return (
     <span className="doc-block-summary-row">
       <span className="doc-block-title">{title}</span>
-      {showActionBar && (
+      {(onEdit !== null || showActionBar) && (
         <span className="doc-block-actions">
+          {onEdit !== null && (
+            <button
+              type="button"
+              className="doc-block-add-change"
+              onMouseDown={stopSummaryToggle}
+              onClick={(event) => {
+                stopSummaryToggle(event);
+                onEdit();
+              }}
+            >
+              Редактировать
+            </button>
+          )}
           {hasAppliedLink && (
             <button
               type="button"

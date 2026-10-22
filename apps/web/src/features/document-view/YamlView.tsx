@@ -200,6 +200,7 @@ export const YamlView: FC<Props> = (props) => {
                 addDisabled={addChangeDisabled}
                 onOpenUpdate={(path) => onOpenFile(path, 'Правка')}
                 onAddChange={() => onAddSectionChange(key, blockBody)}
+                onEdit={null}
               />
             </summary>
             <div className="doc-block-body">

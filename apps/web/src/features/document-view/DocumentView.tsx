@@ -15,7 +15,7 @@ import {
   isUpdatesDocumentPath,
   type AppliedUpdateMeta,
 } from './collapser-updates';
-import { createUpdate, fetchDocument, fetchTree, moveDocumentStatus } from '../../shared/api';
+import { createUpdate, fetchDocument, fetchTree, moveDocumentStatus, saveDocument } from '../../shared/api';
 import { ActionsMenu } from '../../shared/ActionsMenu';
 import { ConfirmModal } from '../../shared/ConfirmModal';
 import {
@@ -79,6 +79,7 @@ const fileStatus = (path: string): 'in_progress' | 'ready' | 'done' | null => {
 
 export const DocumentView: FC<Props> = (props) => {
   const { path, content, highlight, onOpenFile, onAfterStatusMove } = props;
+  const [documentText, setDocumentText] = useState(content);
   const articleRef = useRef<HTMLElement>(null);
   const [error, setError] = useState('');
   const [copyLink, setCopyLink] = useState<CopyLinkPopover | null>(null);
@@ -92,6 +93,7 @@ export const DocumentView: FC<Props> = (props) => {
   const isMarkdown = path.endsWith('.md');
   const isYaml = path.endsWith('.yaml') || path.endsWith('.yml');
   const isImage = isImagePath(path);
+  const editable = isMarkdown && !path.includes('/done/');
   const isPendingUpdateFile =
     isUpdatesDocumentPath(path) && !path.includes('/updates/done/');
   const statusActions = isPendingUpdateFile
@@ -130,7 +132,7 @@ export const DocumentView: FC<Props> = (props) => {
     const resolvedHighlight =
       nextHighlight !== undefined
         ? nextHighlight
-        : updateLinkedSectionHighlight(content, linkedName);
+        : updateLinkedSectionHighlight(documentText, linkedName);
     const candidates = [
       ...updateFeatureStatusCandidates(path, linkedName),
       targetPath,
@@ -246,7 +248,16 @@ export const DocumentView: FC<Props> = (props) => {
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [highlight, content, path]);
+  }, [highlight, documentText, path]);
+
+  useEffect(() => {
+    setDocumentText(content);
+  }, [content, path]);
+
+  const saveContent = (next: string): Promise<void> =>
+    saveDocument(path, next).then(() => {
+      setDocumentText(next);
+    });
 
   return (
     <article className="document" ref={articleRef} onMouseUp={onArticleMouseUp}>
@@ -285,19 +296,21 @@ export const DocumentView: FC<Props> = (props) => {
         {isMarkdown && (
           <MarkdownView
             documentPath={path}
-            content={content}
+            content={documentText}
             appliedUpdates={appliedUpdates}
             openUpdates={openUpdates}
             canCreateUpdate={canCreateUpdate}
             addChangeDisabled={addChangePending}
             onOpenFile={openLinkedFile}
             onAddSectionChange={submitSectionChange}
+            editable={editable}
+            onSaveContent={saveContent}
           />
         )}
         {isYaml && (
           <YamlView
             documentPath={path}
-            content={content}
+            content={documentText}
             appliedUpdates={appliedUpdates}
             openUpdates={openUpdates}
             canCreateUpdate={canCreateUpdate}

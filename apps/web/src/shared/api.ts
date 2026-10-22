@@ -80,6 +80,26 @@ export const fetchTree = (path: string): Promise<TreeEntry[]> =>
 export const fetchNode = (path: string): Promise<NodeDescription> =>
   fetch(`/api/node?path=${encodeURIComponent(path)}`).then((response) => readJson(response));
 
+export const saveDocument = (path: string, content: string): Promise<{ path: string }> =>
+  writeJson('/api/document', {
+    method: 'PUT',
+    body: JSON.stringify({ path, content }),
+  });
+
+export const uploadAsset = (
+  featurePath: string,
+  file: File,
+  pixo: string,
+): Promise<{ path: string; markdown: string }> => {
+  const body = new FormData();
+  body.append('featurePath', featurePath);
+  body.append('file', file);
+  if (pixo.trim() !== '') {
+    body.append('pixo', pixo.trim());
+  }
+  return fetch('/api/assets', { method: 'POST', body }).then((response) => readJson(response));
+};
+
 export const fetchDocument = (path: string): Promise<{ path: string; content: string }> =>
   fetch(`/api/document?path=${encodeURIComponent(path)}`).then((response) => readJson(response));
 

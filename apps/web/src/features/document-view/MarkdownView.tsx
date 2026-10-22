@@ -10,7 +10,8 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { resolveRelative } from '../../pages/Workspace/tree-window';
+import { resolveFeaturePath, resolveRelative } from '../../pages/Workspace/tree-window';
+import { uploadAsset } from '../../shared/api';
 import { fileHref, linkifyText } from './doc-links';
 import { formatJson, tokenizeJson } from './json-highlight';
 import { CollapserSummary } from './CollapserSummary';
@@ -21,6 +22,8 @@ import {
   isUpdatesDocumentPath,
 } from './collapser-updates';
 import { splitMarkdownSections } from './markdown-sections';
+import { applyEditedRegion, type EditedRegion } from './markdown-blocks';
+import { SectionEditor } from './SectionEditor';
 import { MermaidDiagram } from './MermaidDiagram';
 import { fragmentFromHref } from './text-fragment';
 
@@ -33,6 +36,8 @@ type Props = {
   addChangeDisabled: boolean;
   onOpenFile: (path: string, highlight?: string | null) => void;
   onAddSectionChange: (sectionTitle: string, blockBody: string) => void;
+  editable: boolean;
+  onSaveContent: (content: string) => Promise<void>;
 };
 
 const currentFileName = (documentPath: string): string => {
@@ -249,6 +254,12 @@ const markdownComponents: ComponentPropsWithoutRef<typeof ReactMarkdown>['compon
   code: MarkdownCode,
 };
 
+export const MarkdownPreview: FC<{ content: string }> = ({ content }) => (
+  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+    {content}
+  </ReactMarkdown>
+);
+
 export const MarkdownView: FC<Props> = (props) => {
   const {
     documentPath,
@@ -259,19 +270,66 @@ export const MarkdownView: FC<Props> = (props) => {
     addChangeDisabled,
     onOpenFile,
     onAddSectionChange,
+    editable,
+    onSaveContent,
   } = props;
   const { prelude, sections } = splitMarkdownSections(content);
   const sourceFileName = currentFileName(documentPath);
   const showCollapserActions = !isUpdatesDocumentPath(documentPath);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const featurePath = resolveFeaturePath(documentPath, null);
+  const canUploadImage =
+    featurePath !== null &&
+    (documentPath.includes('/in-progress/') ||
+      documentPath.includes('/ready-to-implement/') ||
+      documentPath.includes('/assets/'));
+
+  const uploadImage = (file: File, pixoUrl: string): Promise<string> => {
+    if (!featurePath) {
+      return Promise.reject(new Error('Скриншот сохраняется в каталог фичи'));
+    }
+    return uploadAsset(featurePath, file, pixoUrl).then((saved) => saved.markdown);
+  };
+
+  const saveRegion = (region: EditedRegion, body: string): Promise<void> =>
+    onSaveContent(applyEditedRegion(content, region, body)).then(() => {
+      setEditingKey(null);
+    });
+
+  const beginEdit = (key: string) => {
+    setEditingKey(key);
+    setOpenSections((current) => ({ ...current, [key]: true }));
+  };
 
   return (
     <DocActionsContext.Provider value={{ documentPath, onOpenFile }}>
     <div className="markdown doc">
-      {prelude.trim() !== '' && (
+      {(editable || prelude.trim() !== '') && (
         <div className="doc-prelude">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {prelude}
-          </ReactMarkdown>
+          {editable && editingKey !== 'prelude' && (
+            <div className="doc-prelude-bar">
+              <button type="button" className="doc-block-add-change" onClick={() => beginEdit('prelude')}>
+                Редактировать
+              </button>
+            </div>
+          )}
+          {editingKey === 'prelude' ? (
+            <SectionEditor
+              body={prelude}
+              canUploadImage={canUploadImage}
+              preview={MarkdownPreview}
+              onCancel={() => setEditingKey(null)}
+              onSave={(body) => saveRegion({ kind: 'prelude' }, body)}
+              onUploadImage={uploadImage}
+            />
+          ) : (
+            prelude.trim() !== '' && (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {prelude}
+              </ReactMarkdown>
+            )
+          )}
         </div>
       )}
       {sections.map((section) => {
@@ -287,8 +345,20 @@ export const MarkdownView: FC<Props> = (props) => {
         const blockClassName = hasOpenChange
           ? 'doc-block doc-block-open-change'
           : 'doc-block';
+        const isEditing = editingKey === section.title;
         return (
-        <details key={section.title} className={blockClassName}>
+        <details
+          key={section.title}
+          className={blockClassName}
+          open={openSections[section.title] === true}
+          onToggle={(event) => {
+            const node = event.currentTarget;
+            if (isEditing && !node.open) {
+              node.open = true;
+            }
+            setOpenSections((current) => ({ ...current, [section.title]: node.open }));
+          }}
+        >
           <summary>
             <CollapserSummary
               title={section.title}
@@ -300,12 +370,24 @@ export const MarkdownView: FC<Props> = (props) => {
               addDisabled={addChangeDisabled}
               onOpenUpdate={(path) => onOpenFile(path, 'Правка')}
               onAddChange={() => onAddSectionChange(section.title, section.body)}
+              onEdit={editable && !isEditing ? () => beginEdit(section.title) : null}
             />
           </summary>
           <div className="doc-block-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {section.body}
-            </ReactMarkdown>
+            {isEditing ? (
+              <SectionEditor
+                body={section.body}
+                canUploadImage={canUploadImage}
+                preview={MarkdownPreview}
+                onCancel={() => setEditingKey(null)}
+                onSave={(body) => saveRegion({ kind: 'section', title: section.title }, body)}
+                onUploadImage={uploadImage}
+              />
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {section.body}
+              </ReactMarkdown>
+            )}
           </div>
         </details>
         );

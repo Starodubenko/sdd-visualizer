@@ -15,6 +15,8 @@ const render = (content: string): string =>
       addChangeDisabled: false,
       onOpenFile: () => undefined,
       onAddSectionChange: () => undefined,
+      editable: false,
+      onSaveContent: () => Promise.resolve(),
     }),
   );
 

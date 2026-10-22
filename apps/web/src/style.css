@@ -419,6 +419,58 @@ button.danger:not(.tree-row):hover {
   border-radius: 8px;
 }
 
+.doc-prelude-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.section-editor-bar,
+.editor-block-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-editor-bar {
+  margin-bottom: 12px;
+}
+
+.section-editor-save {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.editor-pixo {
+  width: 180px;
+}
+
+.editor-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+
+.editor-block.is-focused {
+  border-color: var(--val);
+}
+
+.editor-block-bar {
+  margin-bottom: 8px;
+}
+
+.editor-block-source {
+  min-height: 140px;
+}
+
+.editor-empty {
+  margin: 0;
+  color: var(--ink2);
+}
+
 .document .sheet-card {
   flex: 1;
   min-height: 0;
