@@ -83,3 +83,33 @@ test('строка == внутри листинга не начинает раз
   );
   assert.match(sections[0]?.body ?? '', /== не раздел/);
 });
+
+test('образец [source,asciidoc] на ------ не отдаёт внутренние == в заголовки', () => {
+  const content = [
+    '= Репозиторий',
+    '',
+    '== Аналитик',
+    '',
+    '[source,asciidoc]',
+    '------',
+    '= Шаблон',
+    '',
+    '== Контекст',
+    'текст',
+    '',
+    '[source,mermaid]',
+    '----',
+    'sequenceDiagram',
+    '----',
+    '',
+    '------',
+    '',
+    'проза после образца',
+  ].join('\n');
+  const { sections } = splitAdocSections(content);
+  assert.deepEqual(sections.map((section) => section.title), ['Аналитик']);
+  assert.doesNotMatch(
+    sections.map((section) => section.title).join('\n'),
+    /Контекст|Задачи|Операция|Слои/,
+  );
+});

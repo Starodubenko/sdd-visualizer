@@ -8,7 +8,25 @@ export type SplitAdoc = {
   sections: AdocSection[];
 };
 
-const FENCES = ['----', '....', '____', '====', '|==='] as const;
+export const fenceDelimiter = (line: string): string | null => {
+  const trimmed = line.trim();
+  if (trimmed === '|===') {
+    return '|===';
+  }
+  if (/^-{4,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^\.{4,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^_{4,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^={4,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return null;
+};
 
 export const isAdocSectionLine = (line: string): boolean => /^== [^=]/.test(line);
 
@@ -16,15 +34,15 @@ export const sectionLineIndexes = (lines: string[]): number[] => {
   const indexes: number[] = [];
   let fence: string | null = null;
   lines.forEach((line, index) => {
-    const trimmed = line.trim();
+    const delimiter = fenceDelimiter(line);
     if (fence) {
-      if (trimmed === fence) {
+      if (delimiter === fence) {
         fence = null;
       }
       return;
     }
-    if ((FENCES as readonly string[]).includes(trimmed)) {
-      fence = trimmed;
+    if (delimiter) {
+      fence = delimiter;
       return;
     }
     if (isAdocSectionLine(line)) {
