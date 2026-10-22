@@ -53,6 +53,19 @@ export type DocLinkDirectory = {
   links: { name: string; target: string }[];
 };
 
+const assetAlt = (fileName: string): string => {
+  const base = fileName.replace(/^\d+-/, '').replace(/\.[^.]+$/, '');
+  const alt = base.replace(/[[\]]/g, '').trim();
+  return alt === '' ? 'Pixo' : alt;
+};
+
+const assetMarkdown = (fileName: string, pixoUrl: string): string => {
+  if (pixoUrl === '') {
+    return `![](../assets/${fileName})`;
+  }
+  return `[![${assetAlt(fileName)}](../assets/${fileName})](${pixoUrl})`;
+};
+
 @Injectable()
 export class DocumentsService {
   constructor(private readonly root: string) {}
@@ -976,10 +989,15 @@ export class DocumentsService {
     featurePath: string,
     originalName: string,
     bytes: Buffer,
+    pixoUrl = '',
   ): Promise<{ path: string; markdown: string }> {
     const description = await this.describe(featurePath);
     if (description.kind !== 'feature') {
       throw new BadRequestException('Скриншот сохраняется в каталог фичи');
+    }
+    const pixo = pixoUrl.trim();
+    if (pixo !== '' && !/^https?:\/\//i.test(pixo)) {
+      throw new BadRequestException('Адрес Pixo должен начинаться с http:// или https://');
     }
     const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_') || 'screen.png';
     const fileName = `${Date.now()}-${safeName}`;
@@ -989,7 +1007,7 @@ export class DocumentsService {
     clearTreeCache();
     return {
       path: `${featurePath}/assets/${fileName}`,
-      markdown: `![](../assets/${fileName})`,
+      markdown: assetMarkdown(fileName, pixo),
     };
   }
 

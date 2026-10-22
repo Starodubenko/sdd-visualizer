@@ -753,3 +753,36 @@ test('renameFeature оставляет фичу в том же эпике', asyn
   await assert.rejects(() => stat(join(root, 'docs/billing/bills')));
   await stat(join(root, 'docs/billing/main/bills/ready-to-implement/analyst.md'));
 });
+
+test('скриншот с адресом Pixo возвращает ссылку-картинку', async () => {
+  const root = copyFixtures();
+  const documents = new DocumentsService(root);
+  const linked = await documents.saveAsset(
+    'docs/payments/main/order-list',
+    'day.png',
+    Buffer.from('png'),
+    'https://pixo.example/order-list',
+  );
+  assert.match(
+    linked.markdown,
+    /^\[!\[day\]\(\.\.\/assets\/\d+-day\.png\)\]\(https:\/\/pixo\.example\/order-list\)$/,
+  );
+  const bare = await documents.saveAsset(
+    'docs/payments/main/order-list',
+    'day.png',
+    Buffer.from('png'),
+  );
+  assert.match(bare.markdown, /^!\[\]\(\.\.\/assets\/\d+-day\.png\)$/);
+  await assert.rejects(
+    () =>
+      documents.saveAsset(
+        'docs/payments/main/order-list',
+        'day.png',
+        Buffer.from('png'),
+        'pixo.example/order-list',
+      ),
+    (error: unknown) =>
+      error instanceof BadRequestException &&
+      error.message === 'Адрес Pixo должен начинаться с http:// или https://',
+  );
+});

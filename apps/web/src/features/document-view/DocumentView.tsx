@@ -24,6 +24,7 @@ import {
   updateLinkedSectionHighlight,
 } from './doc-links';
 import { clearHighlight, highlightFragment } from './highlight-text';
+import { imageRawHref, isImagePath } from './image-path';
 import { MarkdownView } from './MarkdownView';
 import { fragmentLink } from './text-fragment';
 import { YamlView } from './YamlView';
@@ -90,6 +91,7 @@ export const DocumentView: FC<Props> = (props) => {
   const fileName = path.split('/').pop() ?? '';
   const isMarkdown = path.endsWith('.md');
   const isYaml = path.endsWith('.yaml') || path.endsWith('.yml');
+  const isImage = isImagePath(path);
   const isPendingUpdateFile =
     isUpdatesDocumentPath(path) && !path.includes('/updates/done/');
   const statusActions = isPendingUpdateFile
@@ -304,7 +306,8 @@ export const DocumentView: FC<Props> = (props) => {
             onAddSectionChange={submitSectionChange}
           />
         )}
-        {!isMarkdown && !isYaml && <pre>{content}</pre>}
+        {isImage && <img className="asset-image" src={imageRawHref(path)} alt={fileName} />}
+        {!isMarkdown && !isYaml && !isImage && <pre>{content}</pre>}
         {error && <p className="error">{error}</p>}
       </div>
       {copyLink && (

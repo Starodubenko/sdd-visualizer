@@ -57,9 +57,9 @@ sequenceDiagram
 
 | Номер | Скриншот и ссылка на Pixo | Описание |
 |-------|---------------------------|----------|
-| 1 | ![](../assets/screen.png) [Pixo](https://pixo.example/order-list) | Показать список заказов за текущий день |
-| 2 | ![](../assets/screen.png) [Pixo](https://pixo.example/order-list-empty) | Пустой день: текст «Заказов нет», без таблицы |
-| 3 | ![](../assets/screen.png) [Pixo](https://pixo.example/order-list-error) | Ошибка загрузки и кнопка «Повторить» |
+| 1 | [![Список заказов](../assets/screen.png)](https://pixo.example/order-list) | Показать список заказов за текущий день |
+| 2 | [![Пустой день](../assets/screen.png)](https://pixo.example/order-list-empty) | Пустой день: текст «Заказов нет», без таблицы |
+| 3 | [![Ошибка загрузки](../assets/screen.png)](https://pixo.example/order-list-error) | Ошибка загрузки и кнопка «Повторить» |
 
 ## Критерии приёмки артефакта
 

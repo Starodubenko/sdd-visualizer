@@ -32,8 +32,8 @@ role: analyst
 
 | Номер | Скриншот и ссылка на Pixo | Описание |
 |-------|---------------------------|----------|
-| 1 | ![](../assets/card.png) [Pixo](https://pixo.example/payment-card) | Карточка проведённого платежа: номер, сумма, получатель |
-| 2 | ![](../assets/card-rejected.png) [Pixo](https://pixo.example/payment-rejected) | Отклонённый платёж с причиной отказа |
+| 1 | [![Карточка платежа](../assets/card.png)](https://pixo.example/payment-card) | Карточка проведённого платежа: номер, сумма, получатель |
+| 2 | [![Отклонённый платёж](../assets/card-rejected.png)](https://pixo.example/payment-rejected) | Отклонённый платёж с причиной отказа |
 | 3 | | Текст «Платёж не найден», если номера нет |
 
 ## Критерии приёмки артефакта

@@ -412,6 +412,13 @@ button.danger:not(.tree-row):hover {
   color: var(--bad);
 }
 
+.document .asset-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 .document .sheet-card {
   flex: 1;
   min-height: 0;
@@ -881,6 +888,31 @@ form {
 .markdown img {
   max-width: 100%;
   border-radius: 6px;
+}
+
+.markdown td img,
+.markdown th img {
+  display: block;
+  width: auto;
+  max-height: 96px;
+}
+
+.markdown a.doc-pixo {
+  display: inline-block;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.markdown a.doc-pixo:hover img,
+.markdown a.doc-pixo:focus-visible img {
+  outline: 1px solid var(--val);
+  outline-offset: 2px;
+}
+
+.markdown a.doc-pixo .doc-pixo-fallback {
+  line-height: 1.4;
+  color: inherit;
+  text-decoration: underline;
 }
 
 .markdown table {

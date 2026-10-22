@@ -21,6 +21,27 @@ import { DocumentsEventsService } from './documents-events.service';
 import { DocumentsService } from './documents.service';
 import type { FileStatus } from './paths';
 
+const IMAGE_MEDIA_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+};
+
+const imageMediaType = (relativePath: string): string | null => {
+  const name = relativePath.split('/').pop() ?? '';
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) {
+    return null;
+  }
+  return IMAGE_MEDIA_TYPES[name.slice(dot + 1).toLowerCase()] ?? null;
+};
+
 class DocumentBody {
   path = '';
   content = '';
@@ -229,16 +250,21 @@ export class DocumentsController {
   upload(
     @UploadedFile() file: { originalname: string; buffer: Buffer } | undefined,
     @Body('featurePath') featurePath: string,
+    @Body('pixo') pixo: string | undefined,
   ) {
     if (!file) {
       throw new BadRequestException('Файл не передан');
     }
-    return this.documents.saveAsset(featurePath, file.originalname, file.buffer);
+    return this.documents.saveAsset(featurePath, file.originalname, file.buffer, pixo ?? '');
   }
 
   @Get('raw')
   async raw(@Query('path') path: string, @Res() response: Response) {
     const file = await this.documents.readRaw(path);
+    const mediaType = imageMediaType(path);
+    if (mediaType) {
+      response.type(mediaType);
+    }
     createReadStream(file.absolute).pipe(response);
   }
 }

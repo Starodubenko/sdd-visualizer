@@ -53,6 +53,7 @@ import {
   isDocumentPath,
   parseTreeUrl,
 } from './tree-url';
+import { isImagePath } from '../../features/document-view/image-path';
 
 const FEATURE_STATUS_FILTER_OPTIONS: FeatureStatusFilter[] = [
   'all',
@@ -66,6 +67,13 @@ const featureStatusFilterLabel = (value: FeatureStatusFilter): string =>
   value === 'all' ? 'Все' : statusLabel(value);
 
 const settingsRoot = (projectName: string): string => `docs/${projectName}/settings`;
+
+const openShownFile = (path: string): Promise<{ path: string; content: string }> => {
+  if (isImagePath(path)) {
+    return Promise.resolve({ path, content: '' });
+  }
+  return fetchDocument(path);
+};
 
 const settingsTail = (path: string): { project: string; rest: string[] } | null => {
   const parts = path.split('/').filter(Boolean);
@@ -276,7 +284,7 @@ export const WorkspacePage: FC<Props> = (props) => {
         .catch(() => undefined);
     }
     if (isDocumentPath(selected)) {
-      void fetchDocument(selected)
+      void openShownFile(selected)
         .then((next) => {
           if (!cancelled) {
             setDocument(next);
@@ -362,7 +370,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       if (isDocumentPath(path)) {
         setNode(null);
         setDocument(null);
-        void fetchDocument(path)
+        void openShownFile(path)
           .then(setDocument)
           .catch((reason: unknown) => {
             setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
@@ -458,7 +466,7 @@ export const WorkspacePage: FC<Props> = (props) => {
     setSelected(path);
     setNode(null);
     setError('');
-    void fetchDocument(path)
+    void openShownFile(path)
       .then(setDocument)
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
@@ -550,7 +558,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       const currentNode = nodeRef.current;
       const currentDocument = documentRef.current;
       if (currentDocument) {
-        void fetchDocument(currentDocument.path)
+        void openShownFile(currentDocument.path)
           .then(setDocument)
           .catch((reason: unknown) => {
             setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
@@ -585,7 +593,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       refreshFeatureTree(featurePath);
     }
     if (currentDocument) {
-      void fetchDocument(currentDocument.path)
+      void openShownFile(currentDocument.path)
         .then(setDocument)
         .catch((reason: unknown) => {
           setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
@@ -1174,7 +1182,7 @@ export const WorkspacePage: FC<Props> = (props) => {
     setSelected(newPath);
     setNode(null);
     setError('');
-    void fetchDocument(newPath)
+    void openShownFile(newPath)
       .then(setDocument)
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
