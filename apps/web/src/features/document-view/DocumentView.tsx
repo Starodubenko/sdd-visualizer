@@ -25,7 +25,7 @@ import {
 } from './doc-links';
 import { clearHighlight, highlightFragment } from './highlight-text';
 import { imageRawHref, isImagePath } from './image-path';
-import { MarkdownView } from './MarkdownView';
+import { AsciiDocView } from './AsciiDocView';
 import { fragmentLink } from './text-fragment';
 import { YamlView } from './YamlView';
 
@@ -90,10 +90,10 @@ export const DocumentView: FC<Props> = (props) => {
   const status = fileStatus(path);
   const canCreateUpdate = status === 'done' && !isUpdatesDocumentPath(path);
   const fileName = path.split('/').pop() ?? '';
-  const isMarkdown = path.endsWith('.md');
+  const isAdoc = path.endsWith('.adoc');
   const isYaml = path.endsWith('.yaml') || path.endsWith('.yml');
   const isImage = isImagePath(path);
-  const editable = isMarkdown && !path.includes('/done/');
+  const editable = isAdoc && !path.includes('/done/');
   const isPendingUpdateFile =
     isUpdatesDocumentPath(path) && !path.includes('/updates/done/');
   const statusActions = isPendingUpdateFile
@@ -293,8 +293,8 @@ export const DocumentView: FC<Props> = (props) => {
         onConfirm={runStatusMove}
       />
       <div className="sheet-card">
-        {isMarkdown && (
-          <MarkdownView
+        {isAdoc && (
+          <AsciiDocView
             documentPath={path}
             content={documentText}
             appliedUpdates={appliedUpdates}
@@ -320,7 +320,7 @@ export const DocumentView: FC<Props> = (props) => {
           />
         )}
         {isImage && <img className="asset-image" src={imageRawHref(path)} alt={fileName} />}
-        {!isMarkdown && !isYaml && !isImage && <pre>{content}</pre>}
+        {!isAdoc && !isYaml && !isImage && <pre>{content}</pre>}
         {error && <p className="error">{error}</p>}
       </div>
       {copyLink && (

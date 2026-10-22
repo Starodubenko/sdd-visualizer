@@ -1,0 +1,16 @@
+source: backend.adoc
+section: Пример запроса
+
+== Оригинал
+
+[source,json]
+----
+{}
+----
+
+== Правка
+
+[source,json]
+----
+{}
+----

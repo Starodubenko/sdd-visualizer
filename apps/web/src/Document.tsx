@@ -34,7 +34,7 @@ export const Document: FC<Props> = (props) => {
           <App data={data} />
         </div>
         <script dangerouslySetInnerHTML={{ __html: `window.__DATA__=${json}` }} />
-        <script type="module" src="/assets/index.js" />
+        <script type="module" src="/assets/entry-client.js" />
       </body>
     </html>
   );

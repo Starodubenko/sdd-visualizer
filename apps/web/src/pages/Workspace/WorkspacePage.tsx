@@ -99,7 +99,7 @@ const settingsAgentFromPath = (path: string): { dirPath: string; name: string } 
     return null;
   }
   const agent = tail.rest[0];
-  if (agent === 'orchestrator.md') {
+  if (agent === 'orchestrator.adoc') {
     return null;
   }
   if (tail.rest.length === 1 && agent.includes('.')) {
@@ -116,7 +116,7 @@ const settingsSubagentFromPath = (
     return null;
   }
   const [parent, subagent] = tail.rest;
-  if (parent === 'orchestrator.md') {
+  if (parent === 'orchestrator.adoc') {
     return null;
   }
   if (tail.rest.length === 2 && subagent.includes('.')) {

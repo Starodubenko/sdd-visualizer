@@ -10,8 +10,8 @@ export default defineConfig({
     rollupOptions: {
       input: resolve(__dirname, 'src/entry-client.tsx'),
       output: {
-        entryFileNames: 'assets/index.js',
-        chunkFileNames: 'assets/[name].js',
+        entryFileNames: 'assets/entry-client.js',
+        chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name][extname]',
       },
     },

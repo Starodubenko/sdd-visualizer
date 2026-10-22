@@ -1,9 +1,9 @@
 feature: order-list
 role: tester
 depends:
-  - analyst.md
-  - designer.md
-  - backend.md
+  - analyst.adoc
+  - designer.adoc
+  - backend.adoc
 
 cases:
   - id: AC-1

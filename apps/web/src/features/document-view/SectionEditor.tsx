@@ -3,13 +3,13 @@ import {
   blockKind,
   blockSnippets,
   insertAtCursor,
-  joinMarkdownBlocks,
-  splitMarkdownBlocks,
+  joinAdocBlocks,
+  splitAdocBlocks,
+  type AdocBlock,
   type BlockKind,
-  type MarkdownBlock,
-} from './markdown-blocks';
+} from './adoc-blocks';
 
-type EditorBlock = MarkdownBlock & {
+type EditorBlock = AdocBlock & {
   id: string;
   textMode: boolean;
 };
@@ -32,6 +32,7 @@ const kindLabel: Record<BlockKind, string> = {
   mermaid: 'Схема',
   image: 'Картинка',
   heading: 'Коллапсер',
+  admonition: 'Выноска',
 };
 
 let blockSeq = 0;
@@ -42,7 +43,7 @@ const nextBlockId = (): string => {
 };
 
 const toEditorBlocks = (body: string): EditorBlock[] =>
-  splitMarkdownBlocks(body).map((block) => ({
+  splitAdocBlocks(body).map((block) => ({
     ...block,
     id: nextBlockId(),
     textMode: false,
@@ -117,7 +118,7 @@ export const SectionEditor: FC<Props> = (props) => {
   const save = () => {
     setBusy(true);
     setError('');
-    void onSave(joinMarkdownBlocks(blocks))
+    void onSave(joinAdocBlocks(blocks))
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Не удалось сохранить');
       })
@@ -171,6 +172,9 @@ export const SectionEditor: FC<Props> = (props) => {
         </button>
         <button type="button" disabled={busy} onClick={() => insertSnippet(blockSnippets.code)}>
           Код
+        </button>
+        <button type="button" disabled={busy} onClick={() => insertSnippet(blockSnippets.note)}>
+          Выноска
         </button>
         {canUploadImage && (
           <>

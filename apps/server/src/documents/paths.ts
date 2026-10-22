@@ -6,11 +6,11 @@ export const READY_DIR = 'ready-to-implement';
 export const DONE_DIR = 'done';
 
 export const KEY_FILES = [
-  'analyst.md',
-  'designer.md',
-  'backend.md',
+  'analyst.adoc',
+  'designer.adoc',
+  'backend.adoc',
   'tester.yaml',
-  'frontend.md',
+  'frontend.adoc',
 ] as const;
 
 export type KeyFileName = (typeof KEY_FILES)[number];

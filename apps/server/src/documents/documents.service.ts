@@ -61,9 +61,9 @@ const assetAlt = (fileName: string): string => {
 
 const assetMarkdown = (fileName: string, pixoUrl: string): string => {
   if (pixoUrl === '') {
-    return `![](../assets/${fileName})`;
+    return `image:../assets/${fileName}[]`;
   }
-  return `[![${assetAlt(fileName)}](../assets/${fileName})](${pixoUrl})`;
+  return `image:../assets/${fileName}[${assetAlt(fileName)},link=${pixoUrl}]`;
 };
 
 @Injectable()
@@ -450,7 +450,7 @@ export class DocumentsService {
       throw new BadRequestException('Имя агента — kebab-case');
     }
     const settingsDir = await this.projectSettingsDir(project);
-    const orchestratorPath = join(settingsDir, 'orchestrator.md');
+    const orchestratorPath = join(settingsDir, 'orchestrator.adoc');
     const orchestratorInfo = await stat(orchestratorPath).catch(() => null);
     if (!orchestratorInfo?.isFile()) {
       throw new BadRequestException('Нет оркестратора');
@@ -461,12 +461,12 @@ export class DocumentsService {
       throw new BadRequestException('Агент уже существует');
     }
     await mkdir(agentDir, { recursive: true });
-    const templateContent = `# {{feature}}\nfeature: {{feature}}\nrole: ${name}\n`;
-    const agentContent = `Этот агент пишет только файл \`${name}.md\` по соседнему \`template.md\` и не меняет набор разделов.\n`;
-    await writeFile(join(agentDir, 'template.md'), templateContent, 'utf8');
-    await writeFile(join(agentDir, 'agent.md'), agentContent, 'utf8');
+    const templateContent = `= {{feature}}\n\nfeature: {{feature}}\nrole: ${name}\n`;
+    const agentContent = `Этот агент пишет только файл \`${name}.adoc\` по соседнему \`template.adoc\` и не меняет набор разделов.\n`;
+    await writeFile(join(agentDir, 'template.adoc'), templateContent, 'utf8');
+    await writeFile(join(agentDir, 'agent.adoc'), agentContent, 'utf8');
     const orchestratorBefore = await readFile(orchestratorPath, 'utf8');
-    const row = `| \`${name}.md\` | \`settings/${name}/\` |`;
+    const row = `| \`${name}.adoc\` | \`settings/${name}/\` |`;
     if (orchestratorBefore.includes(row)) {
       throw new BadRequestException('Агент уже существует');
     }
@@ -498,12 +498,12 @@ export class DocumentsService {
     const unique = [...new Set(names)];
     const sourceDir = await this.projectSettingsDir(source);
     const targetDir = await this.projectSettingsDir(target);
-    const targetOrchestratorPath = join(targetDir, 'orchestrator.md');
+    const targetOrchestratorPath = join(targetDir, 'orchestrator.adoc');
     const targetOrchestratorInfo = await stat(targetOrchestratorPath).catch(() => null);
     if (!targetOrchestratorInfo?.isFile()) {
       throw new BadRequestException('Нет оркестратора');
     }
-    const sourceOrchestrator = await readFile(join(sourceDir, 'orchestrator.md'), 'utf8').catch(
+    const sourceOrchestrator = await readFile(join(sourceDir, 'orchestrator.adoc'), 'utf8').catch(
       () => '',
     );
     const targetOrchestrator = await readFile(targetOrchestratorPath, 'utf8');
@@ -548,12 +548,12 @@ export class DocumentsService {
   ): Promise<void> {
     const pathPrefix = `settings/${name}/`;
     const nextPathPrefix = `settings/${nextName}/`;
-    const fileToken = `\`${name}.md\``;
-    const nextFileToken = `\`${nextName}.md\``;
+    const fileToken = `\`${name}.adoc\``;
+    const nextFileToken = `\`${nextName}.adoc\``;
     await this.walkSettingsFiles(copiedDir, async (filePath) => {
       const content = await readFile(filePath, 'utf8');
       let next = content.replaceAll(pathPrefix, nextPathPrefix).replaceAll(fileToken, nextFileToken);
-      if (filePath === join(copiedDir, 'template.md')) {
+      if (filePath === join(copiedDir, 'template.adoc')) {
         const lines = next.split('\n');
         next = lines
           .map((line) => (line === `role: ${name}` ? `role: ${nextName}` : line))
@@ -580,7 +580,7 @@ export class DocumentsService {
     }
     const files = await readdir(agentDir);
     const templateName = files.find((fileName) => fileName.startsWith('template.'));
-    const extension = templateName ? templateName.slice('template.'.length) : 'md';
+    const extension = templateName ? templateName.slice('template.'.length) : 'adoc';
     return `.${extension}`;
   }
 
@@ -619,7 +619,7 @@ export class DocumentsService {
     }
     const renamedDir = join(settingsDir, nextName);
     await rename(agentDir, renamedDir);
-    const orchestratorPath = join(settingsDir, 'orchestrator.md');
+    const orchestratorPath = join(settingsDir, 'orchestrator.adoc');
     const orchestratorInfo = await stat(orchestratorPath).catch(() => null);
     if (orchestratorInfo?.isFile()) {
       const orchestratorContent = await readFile(orchestratorPath, 'utf8');
@@ -638,7 +638,7 @@ export class DocumentsService {
       }
       await writeFile(filePath, content.replaceAll(pathPrefix, nextPathPrefix), 'utf8');
     });
-    const templatePath = join(renamedDir, 'template.md');
+    const templatePath = join(renamedDir, 'template.adoc');
     const templateInfo = await stat(templatePath).catch(() => null);
     if (templateInfo?.isFile()) {
       const templateContent = await readFile(templatePath, 'utf8');
@@ -683,7 +683,7 @@ export class DocumentsService {
       throw new BadRequestException('Сабагент уже существует');
     }
     await rename(subagentDir, targetDir);
-    const agentMdPath = join(settingsDir, parent, 'agent.md');
+    const agentMdPath = join(settingsDir, parent, 'agent.adoc');
     const agentMdInfo = await stat(agentMdPath).catch(() => null);
     if (agentMdInfo?.isFile()) {
       const parentAgentContent = await readFile(agentMdPath, 'utf8');
@@ -707,7 +707,7 @@ export class DocumentsService {
     if (!existing?.isDirectory()) {
       throw new NotFoundException('Агент не найден');
     }
-    const orchestratorPath = join(settingsDir, 'orchestrator.md');
+    const orchestratorPath = join(settingsDir, 'orchestrator.adoc');
     const orchestratorContent = await readFile(orchestratorPath, 'utf8').catch(() => '');
     await rm(agentDir, { recursive: true, force: true });
     if (orchestratorContent) {
@@ -730,7 +730,7 @@ export class DocumentsService {
     }
     const settingsDir = await this.projectSettingsDir(project);
     const agentDir = join(settingsDir, parent);
-    const agentMdPath = join(agentDir, 'agent.md');
+    const agentMdPath = join(agentDir, 'agent.adoc');
     const agentDirInfo = await stat(agentDir).catch(() => null);
     const agentMdInfo = await stat(agentMdPath).catch(() => null);
     if (!agentDirInfo?.isDirectory() || !agentMdInfo?.isFile()) {
@@ -742,10 +742,10 @@ export class DocumentsService {
       throw new BadRequestException('Сабагент уже существует');
     }
     await mkdir(subagentDir, { recursive: true });
-    const templateContent = `## ${name}\n\nЧасть документа агента ${parent}.\n`;
-    const agentContent = `Этот сабагент пишет только свою часть файла \`${parent}.md\` по соседнему \`template.md\`.\n`;
-    await writeFile(join(subagentDir, 'template.md'), templateContent, 'utf8');
-    await writeFile(join(subagentDir, 'agent.md'), agentContent, 'utf8');
+    const templateContent = `== ${name}\n\nЧасть документа агента ${parent}.\n`;
+    const agentContent = `Этот сабагент пишет только свою часть файла \`${parent}.adoc\` по соседнему \`template.adoc\`.\n`;
+    await writeFile(join(subagentDir, 'template.adoc'), templateContent, 'utf8');
+    await writeFile(join(subagentDir, 'agent.adoc'), agentContent, 'utf8');
     const parentAgentContent = await readFile(agentMdPath, 'utf8');
     const row = `| \`${name}\` | \`settings/${parent}/${name}/\` |`;
     if (parentAgentContent.includes(row)) {
@@ -771,7 +771,7 @@ export class DocumentsService {
       throw new NotFoundException('Сабагент не найден');
     }
     await rm(subagentDir, { recursive: true, force: true });
-    const agentMdPath = join(settingsDir, parent, 'agent.md');
+    const agentMdPath = join(settingsDir, parent, 'agent.adoc');
     const agentMdInfo = await stat(agentMdPath).catch(() => null);
     if (agentMdInfo?.isFile()) {
       const parentAgentContent = await readFile(agentMdPath, 'utf8');
@@ -785,13 +785,13 @@ export class DocumentsService {
   }
 
   private appendSubagentRow(content: string, row: string): string {
-    const header = '## Сабагенты';
+    const header = '== Сабагенты';
     if (!content.includes(header)) {
-      const block = `\n\n${header}\n\n| Сабагент | Каталог |\n|----------|---------|\n${row}\n`;
+      const block = `\n\n${header}\n\n|===\n| Сабагент | Каталог\n\n${row}\n|===\n`;
       return `${content.trimEnd()}${block}`;
     }
     const lines = content.split('\n');
-    let lastTableLine = -1;
+    let closeDelim = -1;
     let inSection = false;
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index];
@@ -799,25 +799,25 @@ export class DocumentsService {
         inSection = true;
         continue;
       }
-      if (inSection && line.startsWith('## ') && line.trim() !== header) {
+      if (inSection && /^== [^=]/.test(line) && line.trim() !== header) {
         break;
       }
-      if (inSection && line.startsWith('|')) {
-        lastTableLine = index;
+      if (inSection && line.trim() === '|===') {
+        closeDelim = index;
       }
     }
-    if (lastTableLine === -1) {
-      const block = `\n\n${header}\n\n| Сабагент | Каталог |\n|----------|---------|\n${row}\n`;
+    if (closeDelim === -1) {
+      const block = `\n\n${header}\n\n|===\n| Сабагент | Каталог\n\n${row}\n|===\n`;
       return `${content.trimEnd()}${block}`;
     }
-    const nextLines = [...lines.slice(0, lastTableLine + 1), row, ...lines.slice(lastTableLine + 1)];
+    const nextLines = [...lines.slice(0, closeDelim), row, ...lines.slice(closeDelim)];
     return nextLines.join('\n');
   }
 
   private removeSubagentRow(content: string, parent: string, name: string): string {
     const pathNeedle = `\`settings/${parent}/${name}/\``;
     const lines = content.split('\n');
-    const header = '## Сабагенты';
+    const header = '== Сабагенты';
     let sectionStart = -1;
     for (let index = 0; index < lines.length; index += 1) {
       if (lines[index].trim() === header) {
@@ -830,7 +830,7 @@ export class DocumentsService {
     }
     let sectionEnd = lines.length;
     for (let index = sectionStart + 1; index < lines.length; index += 1) {
-      if (lines[index].startsWith('## ') && lines[index].trim() !== header) {
+      if (/^== [^=]/.test(lines[index]) && lines[index].trim() !== header) {
         sectionEnd = index;
         break;
       }
@@ -902,7 +902,7 @@ export class DocumentsService {
         }
         const fileName = fileCell[1];
         const dotIndex = fileName.lastIndexOf('.');
-        const extension = dotIndex >= 0 ? fileName.slice(dotIndex) : '.md';
+        const extension = dotIndex >= 0 ? fileName.slice(dotIndex) : '.adoc';
         return `| \`${nextName}${extension}\` | \`settings/${nextName}/\` |`;
       })
       .join('\n');
@@ -1057,10 +1057,10 @@ export class DocumentsService {
     await mkdir(updatesDir, { recursive: true });
     const stamp = formatUpdateTimestamp(at);
     const baseName = `${stamp}-${basenameWithoutExtension(sourceFileName)}-${slug}`;
-    let fileName = `${baseName}.md`;
+    let fileName = `${baseName}.adoc`;
     let target = join(updatesDir, fileName);
     if (await stat(target).catch(() => null)) {
-      fileName = `${baseName}-2.md`;
+      fileName = `${baseName}-2.adoc`;
       target = join(updatesDir, fileName);
     }
     const content = renderUpdateFile(sourceFileName, sectionTitle, body);

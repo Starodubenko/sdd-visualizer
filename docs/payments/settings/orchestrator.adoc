@@ -1,0 +1,15 @@
+= Оркестратор документов фичи
+
+По *имени открытого файла* в каталоге фичи выберите каталог типа в `settings/` этого проекта и следуйте его `agent.adoc` и соседнему `template.*`:
+
+|===
+| Файл фичи | Каталог настроек
+
+| `analyst.adoc` | `settings/analyst/`
+| `designer.adoc` | `settings/designer/`
+| `backend.adoc` | `settings/backend/`
+| `tester.yaml` | `settings/tester/`
+| `frontend.adoc` | `settings/frontend/`
+|===
+
+Для имени, которого нет в таблице, новый документ не выдумывать и содержимое не подменять.

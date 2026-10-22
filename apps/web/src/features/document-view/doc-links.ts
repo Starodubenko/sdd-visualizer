@@ -2,7 +2,7 @@ export type LinkifyPart =
   | { kind: 'text'; value: string }
   | { kind: 'file'; value: string };
 
-const FILE_EXT = /\.(md|yaml|yml)$/i;
+const FILE_EXT = /\.(adoc|md|yaml|yml)$/i;
 
 const STATUS_DIRS = ['in-progress', 'ready-to-implement', 'done'] as const;
 
@@ -80,7 +80,7 @@ export const updateLinkedSectionHighlight = (
 };
 
 const FILE_TOKEN =
-  /(?:^|[\s(])([^\s/()]+\.(?:md|yaml|yml))(?=[\s.,;:)]|$)/gi;
+  /(?:^|[\s(])([^\s/()]+\.(?:adoc|md|yaml|yml))(?=[\s.,;:)]|$)/gi;
 
 export const linkifyText = (text: string): LinkifyPart[] => {
   const parts: LinkifyPart[] = [];

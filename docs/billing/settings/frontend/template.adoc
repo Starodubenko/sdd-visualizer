@@ -1,0 +1,71 @@
+= {{feature}}
+
+feature: {{feature}}
+role: frontend
+depends:
+  * analyst.adoc
+  * designer.adoc
+  * backend.adoc
+  * tester.yaml
+
+== Слои
+* page: 
+* feature: 
+* server module: 
+* ssr: 
+
+== Эталон
+
+== Вызов API
+
+== Поля экрана
+|===
+| Поле из backend.adoc | Где читается в интерфейсе
+
+|  | 
+|===
+
+== Трассировка
+|===
+| AC | Модуль
+
+| AC-1 | 
+|===
+
+== Каркас
+* 
+
+== Дельта
+* 
+
+== Тексты
+Тексты интерфейса взяты из designer.adoc без перефразирования.
+
+== Схема
+
+[source,mermaid]
+----
+classDiagram
+  class Page
+  class Feature
+  class Controller
+  Page --> Feature
+  Feature --> Controller
+----
+
+== Критерии приёмки артефакта
+|===
+| ID | Критерий
+
+| FE-1 | В шапке указаны feature-id и зависимости.
+| FE-2 | Названы пути page, feature, server module и ssr.
+| FE-3 | Назван эталон каталогов.
+| FE-4 | Вызов API описывает обращение к controller после гидрации.
+| FE-5 | Каждое поле экрана есть в backend.adoc.
+| FE-6 | Каждый AC-* с surface ui стоит в трассировке.
+| FE-7 | В каркасе записаны команды этой фичи.
+| FE-8 | Дельта перечисляет только ручной маппинг и ветки.
+| FE-9 | Тексты совпадают с designer.adoc.
+| FE-10 | Файл не выпускает новых AC-* и не меняет контракт.
+| FE-11 | В «Схеме» classDiagram: page, feature и controller из слоёв и вызова API.
+|===

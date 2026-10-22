@@ -26,13 +26,13 @@ test('перенос файла из готово снимает готовно�
     force: true,
   });
   await documents.moveStatus(
-    'docs/billing/main/invoices/ready-to-implement/frontend.md',
+    'docs/billing/main/invoices/ready-to-implement/frontend.adoc',
     'in_progress',
   );
   const invoices = await documents.describe('docs/billing/main/invoices');
   assert.equal(invoices.status, 'in_progress');
   const moved = await readFile(
-    join(root, 'docs/billing/main/invoices/in-progress/frontend.md'),
+    join(root, 'docs/billing/main/invoices/in-progress/frontend.adoc'),
     'utf8',
   );
   assert.match(moved, /invoices/);
@@ -43,7 +43,7 @@ test('дерево не возвращает текст большого фай�
   const documents = new DocumentsService(root);
   const entries = await documents.list('docs/payments/main/order-list/in-progress');
   const payload = JSON.stringify(entries);
-  assert.match(payload, /large\.md/);
+  assert.match(payload, /large\.adoc/);
   assert.doesNotMatch(payload, /UNIQUE_LARGE_BODY_SENTINEL/);
 });
 
@@ -52,14 +52,14 @@ test('список фичи скрывает каталоги статуса', a
   const documents = new DocumentsService(root);
   const entries = await documents.list('docs/payments/main/order-list');
   const payload = JSON.stringify(entries);
-  assert.ok(entries.some((entry) => entry.name === 'large.md'));
+  assert.ok(entries.some((entry) => entry.name === 'large.adoc'));
   assert.deepEqual(
-    entries.find((entry) => entry.name === 'обзор.md'),
+    entries.find((entry) => entry.name === 'обзор.adoc'),
     {
-      name: 'обзор.md',
+      name: 'обзор.adoc',
       kind: 'file',
       status: 'done',
-      path: 'docs/payments/main/order-list/done/обзор.md',
+      path: 'docs/payments/main/order-list/done/обзор.adoc',
     },
   );
   assert.ok(
@@ -80,12 +80,12 @@ test('перенос ключевых файлов в done меняет стат
   const withOpenUpdate = await documents.describe('docs/billing/main/invoices');
   assert.equal(withOpenUpdate.status, 'changes');
   await documents.moveStatus(
-    'docs/billing/main/invoices/ready-to-implement/analyst.md',
+    'docs/billing/main/invoices/ready-to-implement/analyst.adoc',
     'done',
   );
   const partial = await documents.describe('docs/billing/main/invoices');
   assert.equal(partial.status, 'changes');
-  for (const name of ['designer.md', 'backend.md', 'tester.yaml', 'frontend.md']) {
+  for (const name of ['designer.adoc', 'backend.adoc', 'tester.yaml', 'frontend.adoc']) {
     await documents.moveStatus(
       `docs/billing/main/invoices/ready-to-implement/${name}`,
       'done',
@@ -96,15 +96,15 @@ test('перенос ключевых файлов в done меняет стат
   await rm(
     join(
       root,
-      'docs/billing/main/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md',
+      'docs/billing/main/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.adoc',
     ),
   );
   await documents.moveStatus(
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.adoc',
     'done',
   );
   await documents.moveStatus(
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.adoc',
     'done',
   );
   const complete = await documents.describe('docs/billing/main/invoices');
@@ -116,13 +116,13 @@ test('создание фичи пишет пять шаблонов в ката
   const documents = new DocumentsService(root);
   await documents.createFeature('payments', 'main', 'new-card');
   const analyst = await readFile(
-    join(root, 'docs/payments/main/new-card/in-progress/analyst.md'),
+    join(root, 'docs/payments/main/new-card/in-progress/analyst.adoc'),
     'utf8',
   );
-  assert.match(analyst, /\| Номер \| Скриншот и ссылка на Pixo \| Описание \|/);
+  assert.match(analyst, /\| Номер \| Скриншот и ссылка на Pixo \| Описание/);
   assert.match(analyst, /AN-1/);
   assert.match(analyst, /AN-8/);
-  for (const name of ['designer.md', 'backend.md', 'tester.yaml', 'frontend.md']) {
+  for (const name of ['designer.adoc', 'backend.adoc', 'tester.yaml', 'frontend.adoc']) {
     const content = await readFile(
       join(root, 'docs/payments/main/new-card/in-progress', name),
       'utf8',
@@ -148,36 +148,36 @@ test('создание фичи учитывает лишний каталог �
   const extraDir = join(root, 'docs/payments/settings/extra-type');
   await mkdir(extraDir, { recursive: true });
   await writeFile(
-    join(extraDir, 'template.md'),
+    join(extraDir, 'template.adoc'),
     '# {{feature}}\nfeature: {{feature}}\n',
     'utf8',
   );
   const documents = new DocumentsService(root);
   await documents.createFeature('payments', 'main', 'with-extra');
-  await stat(join(root, 'docs/payments/main/with-extra/in-progress/extra-type.md'));
+  await stat(join(root, 'docs/payments/main/with-extra/in-progress/extra-type.adoc'));
   const extra = await readFile(
-    join(root, 'docs/payments/main/with-extra/in-progress/extra-type.md'),
+    join(root, 'docs/payments/main/with-extra/in-progress/extra-type.adoc'),
     'utf8',
   );
   assert.match(extra, /with-extra/);
 });
 
-test('каталог настроек только с agent.md не попадает в фичу', async () => {
+test('каталог настроек только с agent.adoc не попадает в фичу', async () => {
   const root = copyFixtures();
   const agentOnlyDir = join(root, 'docs/payments/settings/agent-only');
   await mkdir(agentOnlyDir, { recursive: true });
-  await writeFile(join(agentOnlyDir, 'agent.md'), 'agent\n', 'utf8');
+  await writeFile(join(agentOnlyDir, 'agent.adoc'), 'agent\n', 'utf8');
   const documents = new DocumentsService(root);
   await documents.createFeature('payments', 'main', 'no-agent-only');
   await assert.rejects(() =>
-    stat(join(root, 'docs/payments/main/no-agent-only/in-progress/agent-only.md')),
+    stat(join(root, 'docs/payments/main/no-agent-only/in-progress/agent-only.adoc')),
   );
   for (const name of [
-    'analyst.md',
-    'designer.md',
-    'backend.md',
+    'analyst.adoc',
+    'designer.adoc',
+    'backend.adoc',
     'tester.yaml',
-    'frontend.md',
+    'frontend.adoc',
   ]) {
     await stat(join(root, 'docs/payments/main/no-agent-only/in-progress', name));
   }
@@ -240,11 +240,11 @@ test('список эпика проставляет статус каталог
 test('createUpdate пишет файл изменения и не трогает спеку', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const specPath = 'docs/billing/main/invoices/ready-to-implement/analyst.md';
+  const specPath = 'docs/billing/main/invoices/ready-to-implement/analyst.adoc';
   const patchBody = 'Краткий текст правки для теста.';
   const at = new Date('2026-10-21T14:05:00');
   const wouldBeUpdatePath =
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-1405-analyst-результат.md';
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-1405-analyst-результат.adoc';
   await assert.rejects(
     () => documents.createUpdate(specPath, 'Результат', patchBody, at),
     BadRequestException,
@@ -256,10 +256,10 @@ test('createUpdate пишет файл изменения и не трогает
   const created = await documents.createUpdate(doneSpecPath, 'Результат', patchBody, at);
   assert.equal(created.path, wouldBeUpdatePath);
   const updateContent = await readFile(join(root, created.path), 'utf8');
-  assert.match(updateContent, /^source: analyst\.md$/m);
+  assert.match(updateContent, /^source: analyst\.adoc$/m);
   assert.match(updateContent, /^section: Результат$/m);
-  assert.match(updateContent, /## Оригинал\n\nКраткий текст правки для теста\./);
-  assert.match(updateContent, /## Правка\n\nКраткий текст правки для теста\./);
+  assert.match(updateContent, /== Оригинал\n\nКраткий текст правки для теста\./);
+  assert.match(updateContent, /== Правка\n\nКраткий текст правки для теста\./);
   const after = await readFile(join(root, doneSpecPath), 'utf8');
   assert.equal(after, before);
 });
@@ -268,17 +268,17 @@ test('moveStatus для файла изменения дописывает се�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const updatePath =
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md';
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.adoc';
   const moved = await documents.moveStatus(updatePath, 'done');
   assert.equal(
     moved.path,
-    'docs/billing/main/invoices/updates/done/2026-10-21-0423-backend-пример-запроса.md',
+    'docs/billing/main/invoices/updates/done/2026-10-21-0423-backend-пример-запроса.adoc',
   );
   const backend = await readFile(
-    join(root, 'docs/billing/main/invoices/ready-to-implement/backend.md'),
+    join(root, 'docs/billing/main/invoices/ready-to-implement/backend.adoc'),
     'utf8',
   );
-  assert.match(backend, /```json\n\{\}\n```/);
+  assert.match(backend, /\[source,json\]\n----\n\{\}\n----/);
   await assert.rejects(() => stat(join(root, updatePath)));
   await stat(join(root, moved.path));
 });
@@ -287,8 +287,8 @@ test('moveStatus для файла изменения отклоняет рас�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const updatePath =
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.md';
-  const analystPath = join(root, 'docs/billing/main/invoices/ready-to-implement/analyst.md');
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0309-analyst-результат.adoc';
+  const analystPath = join(root, 'docs/billing/main/invoices/ready-to-implement/analyst.adoc');
   const analystBefore = await readFile(analystPath, 'utf8');
   await assert.rejects(
     () => documents.moveStatus(updatePath, 'done'),
@@ -302,27 +302,27 @@ test('список фичи проставляет hasOpenChange по source и�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const entries = await documents.list('docs/billing/main/invoices');
-  assert.deepEqual(entries.find((entry) => entry.name === 'analyst.md'), {
-    name: 'analyst.md',
+  assert.deepEqual(entries.find((entry) => entry.name === 'analyst.adoc'), {
+    name: 'analyst.adoc',
     kind: 'file',
     status: 'ready',
-    path: 'docs/billing/main/invoices/ready-to-implement/analyst.md',
+    path: 'docs/billing/main/invoices/ready-to-implement/analyst.adoc',
     hasOpenChange: true,
   });
-  const backend = entries.find((entry) => entry.name === 'backend.md');
+  const backend = entries.find((entry) => entry.name === 'backend.adoc');
   assert.ok(backend);
   assert.equal(backend.hasOpenChange, true);
   await documents.moveStatus(
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0423-backend-пример-запроса.adoc',
     'done',
   );
   await documents.moveStatus(
-    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.md',
+    'docs/billing/main/invoices/updates/in-progress/2026-10-21-0427-backend-пример-ответа.adoc',
     'done',
   );
   const afterMove = await documents.list('docs/billing/main/invoices');
-  const analystAfter = afterMove.find((entry) => entry.name === 'analyst.md');
-  const backendAfter = afterMove.find((entry) => entry.name === 'backend.md');
+  const analystAfter = afterMove.find((entry) => entry.name === 'analyst.adoc');
+  const backendAfter = afterMove.find((entry) => entry.name === 'backend.adoc');
   assert.ok(analystAfter);
   assert.equal(analystAfter.status, 'ready');
   assert.equal(analystAfter.hasOpenChange, true);
@@ -339,10 +339,10 @@ test('renameFeature переименовывает каталог и строк�
   const described = await documents.describe('docs/payments/main/card-pay');
   assert.equal(described.kind, 'feature');
   const analyst = await readFile(
-    join(root, 'docs/payments/main/card-pay/in-progress/analyst.md'),
+    join(root, 'docs/payments/main/card-pay/in-progress/analyst.adoc'),
     'utf8',
   );
-  assert.match(analyst, /^# Карточка платежа/m);
+  assert.match(analyst, /^= Карточка платежа/m);
   assert.match(analyst, /^feature: card-pay$/m);
   assert.doesNotMatch(analyst, /^feature: payment-card$/m);
 });
@@ -392,28 +392,28 @@ test('createSettingsAgent создаёт каталог, файлы и стро�
   const documents = new DocumentsService(root);
   const result = await documents.createSettingsAgent('payments', 'review');
   assert.equal(result.path, 'docs/payments/settings/review');
-  const template = await readFile(join(root, 'docs/payments/settings/review/template.md'), 'utf8');
-  assert.equal(template, '# {{feature}}\nfeature: {{feature}}\nrole: review\n');
-  const agent = await readFile(join(root, 'docs/payments/settings/review/agent.md'), 'utf8');
+  const template = await readFile(join(root, 'docs/payments/settings/review/template.adoc'), 'utf8');
+  assert.equal(template, '= {{feature}}\n\nfeature: {{feature}}\nrole: review\n');
+  const agent = await readFile(join(root, 'docs/payments/settings/review/agent.adoc'), 'utf8');
   assert.equal(
     agent,
-    'Этот агент пишет только файл `review.md` по соседнему `template.md` и не меняет набор разделов.\n',
+    'Этот агент пишет только файл `review.adoc` по соседнему `template.adoc` и не меняет набор разделов.\n',
   );
-  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
-  assert.match(orchestrator, /\| `review\.md` \| `settings\/review\/` \|/);
+  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.adoc'), 'utf8');
+  assert.match(orchestrator, /\| `review\.adoc` \| `settings\/review\/` \|/);
 });
 
 test('createSettingsAgent отклоняет повторное имя без изменения оркестратора', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   await documents.createSettingsAgent('payments', 'review');
-  const orchestratorBefore = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  const orchestratorBefore = await readFile(join(root, 'docs/payments/settings/orchestrator.adoc'), 'utf8');
   await assert.rejects(
     () => documents.createSettingsAgent('payments', 'review'),
     (error: unknown) =>
       error instanceof BadRequestException && error.message === 'Агент уже существует',
   );
-  const orchestratorAfter = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  const orchestratorAfter = await readFile(join(root, 'docs/payments/settings/orchestrator.adoc'), 'utf8');
   assert.equal(orchestratorAfter, orchestratorBefore);
 });
 
@@ -435,53 +435,50 @@ test('deleteSettingsAgent удаляет каталог и строку орке
   await documents.createSettingsAgent('payments', 'review');
   await documents.deleteSettingsAgent('payments', 'review');
   await assert.rejects(() => stat(join(root, 'docs/payments/settings/review')));
-  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
+  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.adoc'), 'utf8');
   assert.doesNotMatch(orchestrator, /settings\/review\//);
-  assert.match(orchestrator, /\| `analyst\.md` \| `settings\/analyst\/` \|/);
+  assert.match(orchestrator, /\| `analyst\.adoc` \| `settings\/analyst\/`/);
 });
 
-test('createSettingsSubagent создаёт каталог, файлы и строку в agent.md родителя', async () => {
+test('createSettingsSubagent создаёт каталог, файлы и строку в agent.adoc родителя', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
-  const analystAgentBefore = await readFile(
-    join(root, 'docs/payments/settings/analyst/agent.md'),
-    'utf8',
-  );
   const result = await documents.createSettingsSubagent('payments', 'analyst', 'context');
   assert.equal(result.path, 'docs/payments/settings/analyst/context');
   const template = await readFile(
-    join(root, 'docs/payments/settings/analyst/context/template.md'),
+    join(root, 'docs/payments/settings/analyst/context/template.adoc'),
     'utf8',
   );
-  assert.equal(template, '## context\n\nЧасть документа агента analyst.\n');
+  assert.equal(template, '== context\n\nЧасть документа агента analyst.\n');
   const subagentAgent = await readFile(
-    join(root, 'docs/payments/settings/analyst/context/agent.md'),
+    join(root, 'docs/payments/settings/analyst/context/agent.adoc'),
     'utf8',
   );
   assert.equal(
     subagentAgent,
-    'Этот сабагент пишет только свою часть файла `analyst.md` по соседнему `template.md`.\n',
+    'Этот сабагент пишет только свою часть файла `analyst.adoc` по соседнему `template.adoc`.\n',
   );
   const analystAgentAfter = await readFile(
-    join(root, 'docs/payments/settings/analyst/agent.md'),
+    join(root, 'docs/payments/settings/analyst/agent.adoc'),
     'utf8',
   );
-  assert.ok(analystAgentAfter.startsWith(analystAgentBefore.trimEnd()));
+  assert.match(analystAgentAfter, /Этот агент пишет/);
+  assert.match(analystAgentAfter, /`acceptance`/);
   assert.match(
     analystAgentAfter,
     /\| `context` \| `settings\/analyst\/context\/` \|/,
   );
-  assert.match(analystAgentAfter, /## Сабагенты/);
+  assert.match(analystAgentAfter, /== Сабагенты/);
 });
 
-test('createSettingsSubagent не мешает созданию фичи без context.md', async () => {
+test('createSettingsSubagent не мешает созданию фичи без context.adoc', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   await documents.createSettingsSubagent('payments', 'analyst', 'context');
   await documents.createFeature('payments', 'main', 'with-subagent');
-  await stat(join(root, 'docs/payments/main/with-subagent/in-progress/analyst.md'));
+  await stat(join(root, 'docs/payments/main/with-subagent/in-progress/analyst.adoc'));
   await assert.rejects(() =>
-    stat(join(root, 'docs/payments/main/with-subagent/in-progress/context.md')),
+    stat(join(root, 'docs/payments/main/with-subagent/in-progress/context.adoc')),
   );
 });
 
@@ -489,14 +486,14 @@ test('deleteSettingsSubagent удаляет каталог и раздел Са�
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const analystAgentBefore = await readFile(
-    join(root, 'docs/payments/settings/analyst/agent.md'),
+    join(root, 'docs/payments/settings/analyst/agent.adoc'),
     'utf8',
   );
   await documents.createSettingsSubagent('payments', 'analyst', 'context');
   await documents.deleteSettingsSubagent('payments', 'analyst', 'context');
   await assert.rejects(() => stat(join(root, 'docs/payments/settings/analyst/context')));
   const analystAgentAfter = await readFile(
-    join(root, 'docs/payments/settings/analyst/agent.md'),
+    join(root, 'docs/payments/settings/analyst/agent.adoc'),
     'utf8',
   );
   assert.equal(analystAgentAfter.trimEnd(), analystAgentBefore.trimEnd());
@@ -552,11 +549,11 @@ test('renameSettingsAgent переносит каталог и обновляе�
   assert.equal(result.path, 'docs/payments/settings/product-analyst');
   await assert.rejects(() => stat(join(root, 'docs/payments/settings/analyst')));
   await stat(join(root, 'docs/payments/settings/product-analyst'));
-  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.md'), 'utf8');
-  assert.match(orchestrator, /\| `product-analyst\.md` \| `settings\/product-analyst\/` \|/);
+  const orchestrator = await readFile(join(root, 'docs/payments/settings/orchestrator.adoc'), 'utf8');
+  assert.match(orchestrator, /\| `product-analyst\.adoc` \| `settings\/product-analyst\/` \|/);
   assert.doesNotMatch(orchestrator, /settings\/analyst\//);
   const parentAgent = await readFile(
-    join(root, 'docs/payments/settings/product-analyst/agent.md'),
+    join(root, 'docs/payments/settings/product-analyst/agent.adoc'),
     'utf8',
   );
   assert.match(
@@ -564,7 +561,7 @@ test('renameSettingsAgent переносит каталог и обновляе�
     /`settings\/product-analyst\/acceptance\/`/,
   );
   const template = await readFile(
-    join(root, 'docs/payments/settings/product-analyst/template.md'),
+    join(root, 'docs/payments/settings/product-analyst/template.adoc'),
     'utf8',
   );
   assert.match(template, /^role: product-analyst$/m);
@@ -582,11 +579,11 @@ test('renameSettingsAgent отклоняет имя при занятом кат
   await assert.rejects(() => stat(join(root, 'docs/payments/settings/product-analyst')));
 });
 
-test('renameSettingsSubagent переименовывает каталог и строку в agent.md', async () => {
+test('renameSettingsSubagent переименовывает каталог и строку в agent.adoc', async () => {
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const orchestratorBefore = await readFile(
-    join(root, 'docs/payments/settings/orchestrator.md'),
+    join(root, 'docs/payments/settings/orchestrator.adoc'),
     'utf8',
   );
   const result = await documents.renameSettingsSubagent('payments', 
@@ -597,14 +594,14 @@ test('renameSettingsSubagent переименовывает каталог и с
   assert.equal(result.path, 'docs/payments/settings/analyst/criteria');
   await assert.rejects(() => stat(join(root, 'docs/payments/settings/analyst/acceptance')));
   await stat(join(root, 'docs/payments/settings/analyst/criteria'));
-  const parentAgent = await readFile(join(root, 'docs/payments/settings/analyst/agent.md'), 'utf8');
+  const parentAgent = await readFile(join(root, 'docs/payments/settings/analyst/agent.adoc'), 'utf8');
   assert.match(
     parentAgent,
     /\| `criteria` \| `settings\/analyst\/criteria\/` \|/,
   );
   assert.doesNotMatch(parentAgent, /acceptance/);
   const orchestratorAfter = await readFile(
-    join(root, 'docs/payments/settings/orchestrator.md'),
+    join(root, 'docs/payments/settings/orchestrator.adoc'),
     'utf8',
   );
   assert.equal(orchestratorAfter, orchestratorBefore);
@@ -628,22 +625,22 @@ test('copySettingsAgents копирует каталог с именем про�
   const result = await documents.copySettingsAgents('billing', 'payments', ['review']);
   assert.deepEqual(result.paths, ['docs/billing/settings/review-payments']);
   const template = await readFile(
-    join(root, 'docs/billing/settings/review-payments/template.md'),
+    join(root, 'docs/billing/settings/review-payments/template.adoc'),
     'utf8',
   );
   assert.match(template, /role: review-payments/);
-  await stat(join(root, 'docs/billing/settings/review-payments/context/agent.md'));
+  await stat(join(root, 'docs/billing/settings/review-payments/context/agent.adoc'));
   const parentAgent = await readFile(
-    join(root, 'docs/billing/settings/review-payments/agent.md'),
+    join(root, 'docs/billing/settings/review-payments/agent.adoc'),
     'utf8',
   );
   assert.match(parentAgent, /settings\/review-payments\/context\//);
   const billingAfter = await readFile(
-    join(root, 'docs/billing/settings/orchestrator.md'),
+    join(root, 'docs/billing/settings/orchestrator.adoc'),
     'utf8',
   );
-  assert.match(billingAfter, /\| `review-payments\.md` \| `settings\/review-payments\/` \|/);
-  assert.match(billingAfter, /\| `analyst\.md` \| `settings\/analyst\/` \|/);
+  assert.match(billingAfter, /\| `review-payments\.adoc` \| `settings\/review-payments\/` \|/);
+  assert.match(billingAfter, /\| `analyst\.adoc` \| `settings\/analyst\/`/);
   await stat(join(root, 'docs/payments/settings/review'));
   await assert.rejects(() => stat(join(root, 'docs/billing/settings/review')));
 });
@@ -652,7 +649,7 @@ test('copySettingsAgents не копирует повторно ту же дир
   const root = copyFixtures();
   const documents = new DocumentsService(root);
   const analystBefore = await readFile(
-    join(root, 'docs/billing/settings/analyst/template.md'),
+    join(root, 'docs/billing/settings/analyst/template.adoc'),
     'utf8',
   );
   await documents.copySettingsAgents('billing', 'payments', ['analyst']);
@@ -662,7 +659,7 @@ test('copySettingsAgents не копирует повторно ту же дир
       error instanceof BadRequestException && error.message === 'Агент уже существует',
   );
   const analystAfter = await readFile(
-    join(root, 'docs/billing/settings/analyst/template.md'),
+    join(root, 'docs/billing/settings/analyst/template.adoc'),
     'utf8',
   );
   assert.equal(analystAfter, analystBefore);
@@ -751,7 +748,7 @@ test('renameFeature оставляет фичу в том же эпике', asyn
   const result = await documents.renameFeature('docs/billing/main/invoices', 'bills');
   assert.equal(result.path, 'docs/billing/main/bills');
   await assert.rejects(() => stat(join(root, 'docs/billing/bills')));
-  await stat(join(root, 'docs/billing/main/bills/ready-to-implement/analyst.md'));
+  await stat(join(root, 'docs/billing/main/bills/ready-to-implement/analyst.adoc'));
 });
 
 test('скриншот с адресом Pixo возвращает ссылку-картинку', async () => {
@@ -765,14 +762,14 @@ test('скриншот с адресом Pixo возвращает ссылку-
   );
   assert.match(
     linked.markdown,
-    /^\[!\[day\]\(\.\.\/assets\/\d+-day\.png\)\]\(https:\/\/pixo\.example\/order-list\)$/,
+    /^image:\.\.\/assets\/\d+-day\.png\[day,link=https:\/\/pixo\.example\/order-list\]$/,
   );
   const bare = await documents.saveAsset(
     'docs/payments/main/order-list',
     'day.png',
     Buffer.from('png'),
   );
-  assert.match(bare.markdown, /^!\[\]\(\.\.\/assets\/\d+-day\.png\)$/);
+  assert.match(bare.markdown, /^image:\.\.\/assets\/\d+-day\.png\[\]$/);
   await assert.rejects(
     () =>
       documents.saveAsset(

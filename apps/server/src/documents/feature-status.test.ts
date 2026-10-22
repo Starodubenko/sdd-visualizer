@@ -3,11 +3,11 @@ import { test } from 'node:test';
 import { featureStatus } from './feature-status';
 
 const allKeyDone = [
-  'analyst.md',
-  'designer.md',
-  'backend.md',
+  'analyst.adoc',
+  'designer.adoc',
+  'backend.adoc',
   'tester.yaml',
-  'frontend.md',
+  'frontend.adoc',
 ];
 
 test('лишний файл в in-progress при всех ключевых в done — in_progress', () => {

@@ -1,0 +1,75 @@
+= Список заказов
+
+feature: order-list
+role: frontend
+depends:
+  * analyst.adoc
+  * designer.adoc
+  * backend.adoc
+  * tester.yaml
+
+== Слои
+
+* page: `apps/web/src/pages/OrderList/`
+* feature: `apps/web/src/features/order-list/`
+* server module: `apps/server/src/orders/`
+* ssr: `apps/server/src/ssr/order-list`
+
+== Эталон
+
+Каталоги страницы списка и Nest-модуля чтения.
+
+== Вызов API
+
+После гидрации страница вызывает `GET /orders?day=` через общий клиент. Ответ читается как `{ number, amount, status }`.
+
+== Поля экрана
+
+|===
+| Поле из backend.adoc | Где читается в интерфейсе
+
+| number | первая колонка таблицы
+| amount | вторая колонка
+| status | третья колонка
+|===
+
+== Трассировка
+
+|===
+| AC | Модуль
+
+| AC-1 | `apps/web/src/pages/OrderList/`
+| AC-2 | `apps/web/src/features/order-list/`
+| AC-3 | `apps/web/src/features/order-list/`
+|===
+
+== Каркас
+
+* страница списка по эталону OrderList
+* без миграции: таблица orders уже есть
+
+== Дельта
+
+* подписи колонок и тексты пустого дня и ошибки берутся из designer.adoc
+
+== Тексты
+
+Тексты интерфейса взяты из designer.adoc без перефразирования.
+
+== Схема
+
+[source,mermaid]
+----
+classDiagram
+  class OrderListPage {
+    страница списка
+  }
+  class OrderListFeature {
+    пустой день и ошибка
+  }
+  class OrdersController {
+    GET /orders
+  }
+  OrderListPage --> OrderListFeature
+  OrderListFeature --> OrdersController
+----

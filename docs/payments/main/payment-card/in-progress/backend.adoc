@@ -1,0 +1,54 @@
+= Карточка платежа
+
+feature: payment-card
+role: backend
+
+== Операция
+
+* метод: GET
+* путь: /payments/:id
+
+== Пример запроса
+
+[source,json]
+----
+{}
+----
+
+== Ответ
+
+|===
+| Поле | Тип | AC
+
+| id | string | AC-1
+| amount | string | AC-1
+| recipient | string | AC-1
+| status | string | AC-2
+| rejectReason | string | AC-2
+|===
+
+== Пример ответа
+
+[source,json]
+----
+{
+  "id": "PAY-9001",
+  "amount": "2500.00",
+  "recipient": "ООО Ромашка",
+  "status": "rejected",
+  "rejectReason": "Недостаточно средств"
+}
+----
+
+== Ошибки
+
+|===
+| HTTP | Код | Состояние | Когда
+
+| 404 | not_found | Пусто на экране как «не найден» | номера нет
+| 403 | forbidden | Нет прав | нет права чтения
+|===
+
+== Эффекты
+
+* Платёж только читается. Строки не меняются.

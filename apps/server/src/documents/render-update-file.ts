@@ -5,11 +5,11 @@ export const renderUpdateFile = (
 ): string => `source: ${sourceFileName}
 section: ${sectionTitle}
 
-## Оригинал
+== Оригинал
 
 ${body}
 
-## Правка
+== Правка
 
 ${body}
 `;

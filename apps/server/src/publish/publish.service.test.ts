@@ -43,7 +43,7 @@ test('публикация кладёт шаблоны в bare-репозито�
   assert.match(commitMessage.stdout, /^Изменена документация/);
   assert.match(commitMessage.stdout, /\n - payments\n/);
   assert.match(commitMessage.stdout, /\n    - main\n/);
-  assert.match(commitMessage.stdout, /\n       - new-card\/in-progress\/analyst\.md/);
+  assert.match(commitMessage.stdout, /\n       - new-card\/in-progress\/analyst\.adoc/);
   const listed = await exec('git', [
     '-c',
     'core.quotepath=false',
@@ -55,15 +55,15 @@ test('публикация кладёт шаблоны в bare-репозито�
     'HEAD',
   ]);
   const names = listed.stdout;
-  assert.match(names, /docs\/payments\/main\/new-card\/in-progress\/analyst.md/);
+  assert.match(names, /docs\/payments\/main\/new-card\/in-progress\/analyst.adoc/);
   assert.doesNotMatch(names, /configs\.yaml/);
   const analyst = await exec('git', [
     '--git-dir',
     bare,
     'show',
-    'HEAD:docs/payments/main/new-card/in-progress/analyst.md',
+    'HEAD:docs/payments/main/new-card/in-progress/analyst.adoc',
   ]);
-  assert.match(analyst.stdout, /\| Номер \| Скриншот и ссылка на Pixo \| Описание \|/);
+  assert.match(analyst.stdout, /\| Номер \| Скриншот и ссылка на Pixo \| Описание/);
 });
 
 test('publish без изменений не двигает HEAD', async () => {

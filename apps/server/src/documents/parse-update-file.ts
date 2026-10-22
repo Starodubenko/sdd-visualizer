@@ -34,7 +34,7 @@ const extractFixedSection = (content: string, heading: string): string | null =>
   }
   let end = lines.length;
   for (let index = start; index < lines.length; index += 1) {
-    if (lines[index].startsWith('## ')) {
+    if (lines[index].startsWith('== ') && !lines[index].startsWith('===')) {
       end = index;
       break;
     }
@@ -54,8 +54,8 @@ export const parseUpdateFileForApply = (content: string): ParsedUpdateFile | nul
   if (!source || !section) {
     return null;
   }
-  const original = extractFixedSection(content, '## Оригинал');
-  const pravka = extractFixedSection(content, '## Правка');
+  const original = extractFixedSection(content, '== Оригинал');
+  const pravka = extractFixedSection(content, '== Правка');
   if (original === null || pravka === null) {
     return null;
   }

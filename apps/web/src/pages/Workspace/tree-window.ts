@@ -34,11 +34,11 @@ export const featureMatchesFilter = (
 };
 
 export const KEY_FILE_NAMES = [
-  'analyst.md',
-  'designer.md',
-  'backend.md',
+  'analyst.adoc',
+  'designer.adoc',
+  'backend.adoc',
   'tester.yaml',
-  'frontend.md',
+  'frontend.adoc',
 ] as const;
 
 export const isKeyFileName = (name: string): boolean =>
