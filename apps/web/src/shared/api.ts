@@ -26,6 +26,8 @@ export type PageData =
       workspace: {
         projects: string[];
         featureEntries: TreeEntry[];
+        path: string;
+        open: string[];
       };
     }
   | {
@@ -34,6 +36,8 @@ export type PageData =
         project: string;
         projects: string[];
         entries: TreeEntry[];
+        path: string;
+        open: string[];
       };
     };
 

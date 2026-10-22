@@ -238,7 +238,7 @@ export const MarkdownView: FC<Props> = (props) => {
           ? 'doc-block doc-block-open-change'
           : 'doc-block';
         return (
-        <details key={section.title} className={blockClassName} open>
+        <details key={section.title} className={blockClassName}>
           <summary>
             <CollapserSummary
               title={section.title}

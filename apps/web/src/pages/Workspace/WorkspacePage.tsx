@@ -46,6 +46,13 @@ import {
   type FeatureStatusFilter,
 } from './tree-window';
 import { formatSyncCountdown } from './formatSyncCountdown';
+import {
+  buildTreeSearch,
+  directoryPrefixes,
+  expandedPaths,
+  isDocumentPath,
+  parseTreeUrl,
+} from './tree-url';
 
 const FEATURE_STATUS_FILTER_OPTIONS: FeatureStatusFilter[] = [
   'all',
@@ -119,12 +126,16 @@ type Props =
       mode?: 'workspace';
       projects: string[];
       featureEntries: TreeEntry[];
+      initialPath?: string;
+      initialOpen?: string[];
     }
   | {
       mode: 'settings';
       projects: string[];
       settingsProject: string;
       settingsEntries: TreeEntry[];
+      initialPath?: string;
+      initialOpen?: string[];
     };
 
 type Cache = Record<string, TreeEntry[]>;
@@ -139,26 +150,49 @@ export const WorkspacePage: FC<Props> = (props) => {
   const projects = props.projects;
   const featureEntries = isSettings ? [] : props.featureEntries;
   const settingsEntries = isSettings ? props.settingsEntries : [];
-  const initialProject = isSettings
-    ? props.settingsProject || projects[0] || ''
-    : projects[0] ?? '';
+  const requestedPath = props.initialPath ?? '';
+  const requestedProject = requestedPath.split('/').filter((part) => part !== '')[1] ?? '';
+  const initialProject = projects.includes(requestedProject)
+    ? requestedProject
+    : isSettings
+      ? props.settingsProject || projects[0] || ''
+      : projects[0] ?? '';
   const initialTreePath = isSettings
     ? initialProject
       ? settingsRoot(initialProject)
       : ''
-    : initialProjectPath(projects);
+    : initialProject
+      ? initialProjectPath([initialProject])
+      : '';
+  const selectedPath =
+    initialTreePath &&
+    (requestedPath === initialTreePath || requestedPath.startsWith(`${initialTreePath}/`))
+      ? requestedPath
+      : initialTreePath;
+  const initialExpanded: Record<string, boolean> = {};
+  if (initialTreePath) {
+    initialExpanded[initialTreePath] = true;
+  }
+  for (const item of props.initialOpen ?? []) {
+    if (item === initialTreePath || item.startsWith(`${initialTreePath}/`)) {
+      initialExpanded[item] = true;
+    }
+  }
+  for (const prefix of directoryPrefixes(selectedPath)) {
+    if (prefix === initialTreePath || prefix.startsWith(`${initialTreePath}/`)) {
+      initialExpanded[prefix] = true;
+    }
+  }
   const initialTreeEntries = isSettings ? settingsEntries : featureEntries;
   const [project, setProject] = useState(initialProject);
   const treeRootPath = isSettings ? (project ? settingsRoot(project) : '') : project ? `docs/${project}` : '';
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    return initialTreePath ? { [initialTreePath]: true } : {};
-  });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(initialExpanded);
   const [cache, setCache] = useState<Cache>(() => {
     return initialTreePath ? { [initialTreePath]: initialTreeEntries } : {};
   });
-  const [selected, setSelected] = useState(() => initialTreePath);
+  const [selected, setSelected] = useState(() => selectedPath);
   const [node, setNode] = useState<NodeDescription | null>(() => {
-    if (!initialTreePath) {
+    if (!initialTreePath || selectedPath !== initialTreePath) {
       return null;
     }
     return {
@@ -221,6 +255,142 @@ export const WorkspacePage: FC<Props> = (props) => {
     const timer = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  const ignoreUrlWrite = useRef(false);
+  const lastUrlPath = useRef(selected);
+
+  useEffect(() => {
+    let cancelled = false;
+    const remember = (dir: string, entries: TreeEntry[]) => {
+      if (cancelled) {
+        return;
+      }
+      setCache((current) => (current[dir] ? current : { ...current, [dir]: entries }));
+    };
+    for (const dir of Object.keys(expanded).filter((key) => expanded[key])) {
+      if (cache[dir]) {
+        continue;
+      }
+      void fetchTree(dir)
+        .then((entries) => remember(dir, entries))
+        .catch(() => undefined);
+    }
+    if (isDocumentPath(selected)) {
+      void fetchDocument(selected)
+        .then((next) => {
+          if (!cancelled) {
+            setDocument(next);
+          }
+        })
+        .catch((reason: unknown) => {
+          if (!cancelled) {
+            setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
+          }
+        });
+    } else if (selected && selected !== initialTreePath) {
+      void fetchNode(selected)
+        .then((next) => {
+          if (cancelled) {
+            return;
+          }
+          setNode(next);
+          if (next.entries) {
+            remember(selected, next.entries);
+          }
+        })
+        .catch((reason: unknown) => {
+          if (!cancelled) {
+            setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
+          }
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (ignoreUrlWrite.current) {
+      ignoreUrlWrite.current = false;
+      lastUrlPath.current = selected;
+      return;
+    }
+    const search = buildTreeSearch({
+      project,
+      path: selected,
+      open: expandedPaths(expanded, selected).filter(
+        (item) => item === treeRootPath || item.startsWith(`${treeRootPath}/`),
+      ),
+    });
+    const base = isSettings ? '/settings' : '/';
+    const next = `${base}${search}`;
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current === next) {
+      lastUrlPath.current = selected;
+      return;
+    }
+    const method = lastUrlPath.current === selected ? 'replaceState' : 'pushState';
+    lastUrlPath.current = selected;
+    window.history[method](null, '', next);
+  }, [expanded, isSettings, project, selected]);
+
+  useEffect(() => {
+    const applyLocation = () => {
+      const parsed = parseTreeUrl(window.location.search);
+      const name = projects.includes(parsed.project)
+        ? parsed.project
+        : projects.includes(parsed.path.split('/')[1] ?? '')
+          ? parsed.path.split('/')[1]
+          : project;
+      if (!name) {
+        return;
+      }
+      const root = isSettings ? settingsRoot(name) : `docs/${name}`;
+      const path = parsed.path === root || parsed.path.startsWith(`${root}/`) ? parsed.path : root;
+      const open: Record<string, boolean> = { [root]: true };
+      for (const item of [...parsed.open, ...directoryPrefixes(path)]) {
+        if (item === root || item.startsWith(`${root}/`)) {
+          open[item] = true;
+        }
+      }
+      ignoreUrlWrite.current = true;
+      setProject(name);
+      setSelected(path);
+      setExpanded(open);
+      setHighlight(null);
+      setError('');
+      if (isDocumentPath(path)) {
+        setNode(null);
+        setDocument(null);
+        void fetchDocument(path)
+          .then(setDocument)
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось прочитать файл');
+          });
+      } else {
+        setDocument(null);
+        void fetchNode(path)
+          .then((next) => {
+            setNode(next);
+            if (next.entries) {
+              setCache((current) => ({ ...current, [path]: next.entries ?? [] }));
+            }
+          })
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось открыть');
+          });
+      }
+      for (const dir of Object.keys(open)) {
+        void fetchTree(dir)
+          .then((entries) => {
+            setCache((current) => (current[dir] ? current : { ...current, [dir]: entries }));
+          })
+          .catch(() => undefined);
+      }
+    };
+    window.addEventListener('popstate', applyLocation);
+    return () => window.removeEventListener('popstate', applyLocation);
+  }, [isSettings, project, projects]);
 
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -312,7 +482,12 @@ export const WorkspacePage: FC<Props> = (props) => {
   const openChangeFile = (projectName: string, relativePath: string) => {
     if (relativePath === 'settings' || relativePath.startsWith('settings/')) {
       if (!isSettings) {
-        window.location.href = `/settings?project=${encodeURIComponent(projectName)}`;
+        const filePath = `docs/${projectName}/${relativePath}`;
+        window.location.href = `/settings${buildTreeSearch({
+          project: projectName,
+          path: filePath,
+          open: directoryPrefixes(filePath),
+        })}`;
         return;
       }
       const rootPath = settingsRoot(projectName);
@@ -338,7 +513,12 @@ export const WorkspacePage: FC<Props> = (props) => {
       return;
     }
     if (isSettings) {
-      window.location.href = '/';
+      const filePath = `docs/${projectName}/${relativePath}`;
+      window.location.href = `/${buildTreeSearch({
+        project: projectName,
+        path: filePath,
+        open: directoryPrefixes(filePath),
+      })}`;
       return;
     }
     setProject(projectName);

@@ -15,6 +15,8 @@ export const App: FC<Props> = (props) => {
         projects={data.settings.projects}
         settingsProject={data.settings.project}
         settingsEntries={data.settings.entries}
+        initialPath={data.settings.path}
+        initialOpen={data.settings.open}
       />
     );
   }
@@ -22,6 +24,8 @@ export const App: FC<Props> = (props) => {
     <WorkspacePage
       projects={data.workspace.projects}
       featureEntries={data.workspace.featureEntries}
+      initialPath={data.workspace.path}
+      initialOpen={data.workspace.open}
     />
   );
 };

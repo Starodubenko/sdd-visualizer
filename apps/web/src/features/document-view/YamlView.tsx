@@ -188,7 +188,7 @@ export const YamlView: FC<Props> = (props) => {
           : 'doc-block';
         const blockBody = stringify(value).trimEnd();
         return (
-          <details key={key} className={blockClassName} open>
+          <details key={key} className={blockClassName}>
             <summary>
               <CollapserSummary
                 title={key}
