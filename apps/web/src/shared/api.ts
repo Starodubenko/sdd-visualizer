@@ -109,7 +109,9 @@ export const uploadAsset = (
 };
 
 export const fetchDocument = (path: string): Promise<{ path: string; content: string }> =>
-  fetch(`/api/document?path=${encodeURIComponent(path)}`).then((response) => readJson(response));
+  fetch(`/api/document?path=${encodeURIComponent(path)}`, { cache: 'no-store' }).then((response) =>
+    readJson(response),
+  );
 
 export type DocLinkDirectory = {
   path: string;

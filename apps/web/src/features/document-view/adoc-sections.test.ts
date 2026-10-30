@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { splitAdocSections } from './adoc-sections';
+import { highlightForAnchor, splitAdocSections, splitNestedCollapsers } from './adoc-sections';
 
 const analystTemplate = (featureId: string): string => `= ${featureId}
 
@@ -82,6 +82,53 @@ test('строка == внутри листинга не начинает раз
     ['Контекст', 'Результат'],
   );
   assert.match(sections[0]?.body ?? '', /== не раздел/);
+});
+
+test('вложенные коллапсеры валидации отделяются от таблиц и листинга', () => {
+  const body = [
+    '[[валидации]]',
+    '=== Комментарий дела',
+    '',
+    '|===',
+    '| Поле | Правило | Текст',
+    '',
+    '| комментарий | не пустой | Комментарий не должен быть пустым',
+    '|===',
+    '',
+    '=== Статус дела',
+    '',
+    '[source]',
+    '----',
+    '=== не коллапсер',
+    '----',
+    '',
+    'текст',
+  ].join('\n');
+  const nested = splitNestedCollapsers(body);
+  assert.match(nested.prelude, /\[\[валидации\]\]/);
+  assert.deepEqual(
+    nested.sections.map((section) => section.title),
+    ['Комментарий дела', 'Статус дела'],
+  );
+  assert.match(nested.sections[1]?.body ?? '', /=== не коллапсер/);
+});
+
+test('якорь у заголовка открывает этот блок, якорь внутри — абзац под ним', () => {
+  const content = [
+    '== Дроверы',
+    '',
+    '[[дроверы]]',
+    'Панель детализации.',
+    '',
+    '[[document]]',
+    'Рублёвый документ показывает реквизиты платёжной инструкции.',
+  ].join('\n');
+  assert.equal(highlightForAnchor(content, 'дроверы'), 'Дроверы');
+  assert.equal(
+    highlightForAnchor(content, 'document'),
+    'Рублёвый документ показывает реквизиты платёжной инструкции.',
+  );
+  assert.equal(highlightForAnchor(content, 'нет'), null);
 });
 
 test('образец [source,asciidoc] на ------ не отдаёт внутренние == в заголовки', () => {

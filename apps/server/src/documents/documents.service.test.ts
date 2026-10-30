@@ -791,3 +791,19 @@ test('скриншот с адресом Pixo возвращает ссылку-
       error.message === 'Адрес Pixo должен начинаться с http:// или https://',
   );
 });
+
+test('заметки к снимку создаются рядом с png', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sdd-notes-'));
+  const assets = join(root, 'docs/ermo/complaint/sample/assets');
+  await mkdir(assets, { recursive: true });
+  await writeFile(join(assets, 'registry.png'), Buffer.from('png'));
+  const documents = new DocumentsService(root);
+  const notesPath = 'docs/ermo/complaint/sample/assets/registry.notes.yaml';
+  await documents.writeDocument(notesPath, 'notes: []\n');
+  assert.equal(await readFile(join(root, notesPath), 'utf8'), 'notes: []\n');
+  await assert.rejects(
+    () => documents.writeDocument('docs/ermo/complaint/sample/assets/missing.notes.yaml', 'notes: []\n'),
+    (error: unknown) => error instanceof NotFoundException,
+  );
+  await rm(root, { recursive: true, force: true });
+});

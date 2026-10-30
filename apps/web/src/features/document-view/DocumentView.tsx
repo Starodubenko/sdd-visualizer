@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FC } from 'react';
+import { createPortal } from 'react-dom';
 import {
   displayDocumentPath,
   isKeyFileName,
@@ -24,9 +25,13 @@ import {
   updateLinkedSectionHighlight,
 } from './doc-links';
 import { clearHighlight, highlightFragment } from './highlight-text';
-import { imageRawHref, isImagePath } from './image-path';
+import { AssetCanvas } from './asset-notes/AssetCanvas';
+import { isImagePath } from './image-path';
+import { highlightForAnchor } from './adoc-sections';
 import { AsciiDocView } from './AsciiDocView';
-import { fragmentLink } from './text-fragment';
+import { copyText } from './asset-notes/note-link';
+import { Toast } from '../../shared/Toast';
+import { fragmentBrowserHref, textFromFragmentHash } from './text-fragment';
 import { YamlView } from './YamlView';
 
 type Props = {
@@ -83,6 +88,7 @@ export const DocumentView: FC<Props> = (props) => {
   const articleRef = useRef<HTMLElement>(null);
   const [error, setError] = useState('');
   const [copyLink, setCopyLink] = useState<CopyLinkPopover | null>(null);
+  const [linkToast, setLinkToast] = useState(0);
   const [pendingStatus, setPendingStatus] = useState<PendingStatus | null>(null);
   const [appliedUpdates, setAppliedUpdates] = useState<AppliedUpdateMeta[]>([]);
   const [openUpdates, setOpenUpdates] = useState<AppliedUpdateMeta[]>([]);
@@ -126,7 +132,7 @@ export const DocumentView: FC<Props> = (props) => {
       });
   };
 
-  const openLinkedFile = (targetPath: string, nextHighlight?: string | null) => {
+  const openLinkedFile = (targetPath: string, nextHighlight?: string | null, anchor?: string | null) => {
     setError('');
     const linkedName = targetPath.split('/').pop() ?? targetPath;
     const resolvedHighlight =
@@ -141,8 +147,19 @@ export const DocumentView: FC<Props> = (props) => {
     void (async () => {
       for (const candidate of candidates) {
         try {
-          await fetchDocument(candidate);
-          onOpenFile(candidate, resolvedHighlight);
+          const document = await fetchDocument(candidate);
+          const fragmentText = anchor ? textFromFragmentHash(anchor) : null;
+          const fromAnchor = anchor && !fragmentText ? highlightForAnchor(document.content, anchor) : null;
+          if (fragmentText) {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.hash = `t=${fragmentText}`;
+            window.history.replaceState(null, '', nextUrl.toString());
+          } else if (window.location.hash.startsWith('#t=')) {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.hash = '';
+            window.history.replaceState(null, '', nextUrl.toString());
+          }
+          onOpenFile(candidate, fragmentText ?? fromAnchor ?? resolvedHighlight);
           return;
         } catch {
           // try next alternate path
@@ -181,17 +198,18 @@ export const DocumentView: FC<Props> = (props) => {
     if (!copyLink) {
       return;
     }
-    const fileName = path.split('/').pop() ?? '';
-    void navigator.clipboard
-      .writeText(fragmentLink(fileName, copyLink.text))
-      .then(() => {
-        setCopyLink(null);
-        setError('');
-      })
-      .catch(() => {
-        setError('Не удалось скопировать');
-      });
+    copyText(fragmentBrowserHref(window.location.href, copyLink.text));
+    setCopyLink(null);
+    setLinkToast((current) => current + 1);
   };
+
+  useEffect(() => {
+    if (linkToast === 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => setLinkToast(0), 2500);
+    return () => window.clearTimeout(timer);
+  }, [linkToast]);
 
   useEffect(() => {
     const doneTreePath = featureUpdatesDoneTreePath(path);
@@ -249,6 +267,32 @@ export const DocumentView: FC<Props> = (props) => {
       window.cancelAnimationFrame(frame);
     };
   }, [highlight, documentText, path]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) {
+      return;
+    }
+    const applyHash = () => {
+      const pagePath = new URLSearchParams(window.location.search).get('path');
+      const text = textFromFragmentHash(window.location.hash);
+      if (!text || pagePath !== path || article.querySelector('mark.text-hit')) {
+        return;
+      }
+      clearHighlight(article);
+      const mark = highlightFragment(article, text);
+      mark?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    };
+    applyHash();
+    const timer = window.setInterval(applyHash, 200);
+    const stop = window.setTimeout(() => window.clearInterval(timer), 3000);
+    window.addEventListener('hashchange', applyHash);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(stop);
+      window.removeEventListener('hashchange', applyHash);
+    };
+  }, [documentText, path]);
 
   useEffect(() => {
     setDocumentText(content);
@@ -319,10 +363,11 @@ export const DocumentView: FC<Props> = (props) => {
             onAddSectionChange={submitSectionChange}
           />
         )}
-        {isImage && <img className="asset-image" src={imageRawHref(path)} alt={fileName} />}
+        {isImage && <AssetCanvas imagePath={path} editable startMarking />}
         {!isAdoc && !isYaml && !isImage && <pre>{content}</pre>}
         {error && <p className="error">{error}</p>}
       </div>
+      {linkToast > 0 && createPortal(<Toast kind="ok" message="Ссылка скопирована" />, document.body)}
       {copyLink && (
         <button
           type="button"

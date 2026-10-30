@@ -1,5 +1,6 @@
 import { convert } from '@asciidoctor/core';
 import { resolveRelative } from '../../pages/Workspace/tree-window';
+import { embedNoteLinks } from './asset-notes/note-link';
 import { linkifyText } from './doc-links';
 
 const CONVERT_OPTIONS = {
@@ -81,7 +82,7 @@ export const warmAdoc = async (source: string): Promise<void> => {
       if (fragment.trim() === '' || htmlCache.has(fragment)) {
         return;
       }
-      const html = await convert(fragment, CONVERT_OPTIONS);
+      const html = await convert(embedNoteLinks(fragment), CONVERT_OPTIONS);
       htmlCache.set(fragment, String(html));
     }),
   );
@@ -95,7 +96,7 @@ export const loadAdocHtml = async (source: string): Promise<string> => {
   if (cached !== undefined) {
     return cached;
   }
-  const html = String(await convert(source, CONVERT_OPTIONS));
+  const html = String(await convert(embedNoteLinks(source), CONVERT_OPTIONS));
   htmlCache.set(source, html);
   return html;
 };
@@ -143,6 +144,72 @@ export const rewriteAdocImages = (html: string, documentPath: string): string =>
     }
     next = next.replace(/\bclass="([^"]*)"/, (_match, className: string) => `class="${className} doc-pixo"`);
     return `<a${next}>`;
+  });
+};
+
+export const rewriteAdocLinks = (html: string): string =>
+  html.replace(/<a\b([^>]*?)>([\s\S]*?)<\/a>/g, (tag, attrs: string, inner: string) => {
+    if (/\bclass="[^"]*\bimage\b/.test(attrs)) {
+      return tag;
+    }
+    const hrefMatch = /\bhref="([^"]*)"/.exec(attrs);
+    if (!hrefMatch) {
+      return tag;
+    }
+    const href = hrefMatch[1];
+    if (/^https?:\/\//i.test(href)) {
+      return tag;
+    }
+    const hashAt = href.indexOf('#');
+    const pathPart = hashAt === -1 ? href : href.slice(0, hashAt);
+    if (!/\.(?:html|adoc)$/i.test(pathPart)) {
+      return tag;
+    }
+    const adocPath = pathPart.replace(/\.html$/i, '.adoc');
+    const rawAnchor = hashAt === -1 ? '' : href.slice(hashAt + 1);
+    let anchor = '';
+    try {
+      anchor = decodeURIComponent(rawAnchor);
+    } catch {
+      anchor = rawAnchor;
+    }
+    const label = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const highlight = label === '' ? '' : ` data-highlight="${escapeAttr(label)}"`;
+    const anchorAttr = anchor === '' ? '' : ` data-anchor="${escapeAttr(anchor)}"`;
+    return `<button type="button" class="doc-link" data-path="${escapeAttr(adocPath)}"${highlight}${anchorAttr}>${inner}</button>`;
+  });
+
+const API_VERBS = /^(get|post|put|patch|delete|head|options)$/i;
+
+const unescapeHtml = (value: string): string =>
+  value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+
+const apiOpButton = (method: string, path: string): string => {
+  const verb = method.trim();
+  const route = unescapeHtml(path.trim());
+  const tone = API_VERBS.test(verb) ? verb.toLowerCase() : 'none';
+  return `<button type="button" class="api-op-copy" data-copy="${escapeAttr(route)}" aria-label="Скопировать ${escapeAttr(verb)} ${escapeAttr(route)}"><span class="api-op-method api-op-${tone}">${escapeHtml(verb)}</span><span class="api-op-path">${escapeHtml(route)}</span><span class="api-op-hint">Скопировать</span></button>`;
+};
+
+const operationPair =
+  /<li>\s*<p>метод:\s*([^<]*?)\s*<\/p>\s*<\/li>\s*<li>\s*<p>путь:\s*([^<]*?)\s*<\/p>\s*<\/li>/gi;
+
+const loneOperation =
+  /<div class="paragraph">\s*<p>(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\/[^<]+?)\s*<\/p>\s*<\/div>/g;
+
+export const rewriteApiOps = (html: string): string => {
+  const withPairs = html.replace(operationPair, (match, method: string, path: string) => {
+    if (method.trim() === '' || path.trim() === '') {
+      return match;
+    }
+    return `<li class="api-op-item">${apiOpButton(method, path)}</li>`;
+  });
+  return withPairs.replace(loneOperation, (_match, method: string, path: string) => {
+    return `<div class="api-op">${apiOpButton(method, path)}</div>`;
   });
 };
 

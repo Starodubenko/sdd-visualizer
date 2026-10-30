@@ -8,6 +8,8 @@ import {
   type AdocBlock,
   type BlockKind,
 } from './adoc-blocks';
+import { TableEditor } from './TableEditor';
+import { normalizePastedNoteLinks } from './asset-notes/note-link';
 
 type EditorBlock = AdocBlock & {
   id: string;
@@ -16,6 +18,7 @@ type EditorBlock = AdocBlock & {
 
 type Props = {
   body: string;
+  documentPath: string;
   canUploadImage: boolean;
   onSave: (body: string) => Promise<void>;
   onCancel: () => void;
@@ -50,7 +53,7 @@ const toEditorBlocks = (body: string): EditorBlock[] =>
   }));
 
 export const SectionEditor: FC<Props> = (props) => {
-  const { body, canUploadImage, onSave, onCancel, onUploadImage, preview: Preview } = props;
+  const { body, documentPath, canUploadImage, onSave, onCancel, onUploadImage, preview: Preview } = props;
   const [blocks, setBlocks] = useState<EditorBlock[]>(() => toEditorBlocks(body));
   const [focusId, setFocusId] = useState<string | null>(blocks[0]?.id ?? null);
   const [pixo, setPixo] = useState('');
@@ -125,6 +128,14 @@ export const SectionEditor: FC<Props> = (props) => {
       .finally(() => {
         setBusy(false);
       });
+  };
+
+  const replaceBlock = (id: string, source: string) => {
+    const updated = blocksRef.current.map((item) => (
+      item.id === id ? { ...item, source, kind: blockKind(source) } : item
+    ));
+    blocksRef.current = updated;
+    setBlocks(updated);
   };
 
   const upload = (file: File | undefined) => {
@@ -236,17 +247,20 @@ export const SectionEditor: FC<Props> = (props) => {
               className="editor-block-source"
               value={block.source}
               onChange={(event) => {
-                const source = event.target.value;
+                const source = normalizePastedNoteLinks(event.target.value, documentPath);
                 cursors.current[block.id] = event.target.selectionStart;
-                setBlocks((items) =>
-                  items.map((item) =>
-                    item.id === block.id ? { ...item, source, kind: blockKind(source) } : item,
-                  ),
-                );
+                replaceBlock(block.id, source);
               }}
               onSelect={(event) => {
                 cursors.current[block.id] = event.currentTarget.selectionStart;
               }}
+            />
+          ) : block.kind === 'table' ? (
+            <TableEditor
+              source={block.source}
+              documentPath={documentPath}
+              onChange={(source) => replaceBlock(block.id, source)}
+              preview={Preview}
             />
           ) : (
             <Preview content={block.source} />

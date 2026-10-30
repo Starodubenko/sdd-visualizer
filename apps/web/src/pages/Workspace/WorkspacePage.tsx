@@ -29,6 +29,7 @@ import {
   type TreeEntry,
 } from '../../shared/api';
 import { ConfirmModal } from '../../shared/ConfirmModal';
+import { publishDocsChanged } from '../../shared/docs-events';
 import { Modal } from '../../shared/Modal';
 import { Toast } from '../../shared/Toast';
 import {
@@ -367,7 +368,7 @@ export const WorkspacePage: FC<Props> = (props) => {
     }
     const method = lastUrlPath.current === selected ? 'replaceState' : 'pushState';
     lastUrlPath.current = selected;
-    window.history[method](null, '', next);
+    window.history[method](null, '', `${next}${window.location.hash}`);
   }, [expanded, isMethod, isSettings, project, selected, treeRootPath]);
 
   useEffect(() => {
@@ -782,6 +783,7 @@ export const WorkspacePage: FC<Props> = (props) => {
       } catch {
         return;
       }
+      publishDocsChanged(paths);
       const docPath = documentRef.current?.path;
       const prefix = isMethod
         ? `${METHOD_ROOT}/`

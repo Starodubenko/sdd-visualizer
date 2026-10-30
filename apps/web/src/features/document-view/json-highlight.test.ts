@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatJson, tokenizeJson } from './json-highlight';
+import { formatJson, highlightJsonBlocks, highlightJsonSource, tokenizeJson } from './json-highlight';
 
 test('formatJson pretty-prints valid JSON with two-space indent', () => {
   const pretty = formatJson('{"a":1,"ok":true}');
@@ -30,4 +30,25 @@ test('tokenizeJson treats string values as string, not key', () => {
 
 test('formatJson returns null for invalid JSON', () => {
   assert.equal(formatJson('{'), null);
+});
+
+test('highlightJsonSource paints keys, strings, numbers, and literals', () => {
+  const html = highlightJsonSource('{"label":"hello","n":1,"ok":true}');
+  assert.notEqual(html, null);
+  assert.match(html!, /class="json-key">"label"</);
+  assert.match(html!, /class="json-string">"hello"</);
+  assert.match(html!, /class="json-number">1</);
+  assert.match(html!, /class="json-literal">true</);
+});
+
+test('highlightJsonBlocks colors a json listing and leaves broken json as text', () => {
+  const colored = highlightJsonBlocks(
+    '<pre class="highlight"><code class="language-json" data-lang="json">{"a":1}</code></pre>',
+  );
+  assert.match(colored, /class="json-key">"a"</);
+  assert.match(colored, /class="json-number">1</);
+  const broken = highlightJsonBlocks(
+    '<pre class="highlight"><code class="language-json" data-lang="json">{</code></pre>',
+  );
+  assert.equal(broken, '<pre class="highlight"><code class="language-json" data-lang="json">{</code></pre>');
 });

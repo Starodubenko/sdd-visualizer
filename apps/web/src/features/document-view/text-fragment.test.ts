@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fragmentFromHref, fragmentLink } from './text-fragment';
+import { fragmentBrowserHref, fragmentFromHref, fragmentLink, textFromFragmentHash } from './text-fragment';
 
 test('fragmentLink кодирует текст во фрагмент ссылки', () => {
   const link = fragmentLink('analyst.md', 'виден список');
@@ -18,4 +18,13 @@ test('fragmentLink схлопывает переводы строк в t', () =>
 test('fragmentFromHref без #t= возвращает null', () => {
   assert.equal(fragmentFromHref('analyst.md'), null);
   assert.equal(fragmentFromHref('analyst.md#section'), null);
+});
+
+test('fragmentBrowserHref ставит текст в адрес страницы', () => {
+  const href = fragmentBrowserHref(
+    'http://localhost:3000/?project=ermo&path=docs%2Fermo%2Fanalyst.adoc',
+    'виден\n\nсписок',
+  );
+  assert.match(href, /^http:\/\/localhost:3000\/\?project=ermo&path=docs%2Fermo%2Fanalyst\.adoc#t=/);
+  assert.equal(textFromFragmentHash(new URL(href).hash), 'виден список');
 });

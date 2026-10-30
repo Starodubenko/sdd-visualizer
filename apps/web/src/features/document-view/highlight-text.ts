@@ -30,6 +30,22 @@ export const clearHighlight = (root: HTMLElement): void => {
     }
     mark.remove();
   });
+  root.querySelectorAll('.text-hit').forEach((node) => {
+    node.classList.remove('text-hit');
+  });
+};
+
+const sectionTitle = (root: HTMLElement, query: string): HTMLElement | null => {
+  const expected = query.toLowerCase();
+  for (const node of root.querySelectorAll('.doc-block-title')) {
+    if (!(node instanceof HTMLElement)) {
+      continue;
+    }
+    if (normalizeFragment(node.textContent ?? '').toLowerCase() === expected) {
+      return node;
+    }
+  }
+  return null;
 };
 
 const openAncestorDetails = (element: HTMLElement, root: HTMLElement): void => {
@@ -46,6 +62,13 @@ export const highlightFragment = (root: HTMLElement, text: string): HTMLElement 
   const query = normalizeFragment(text);
   if (!query) {
     return null;
+  }
+
+  const title = sectionTitle(root, query);
+  if (title) {
+    title.classList.add('text-hit');
+    openAncestorDetails(title, root);
+    return title;
   }
 
   const nodes = collectTextNodes(root);

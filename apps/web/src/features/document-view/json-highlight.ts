@@ -81,6 +81,43 @@ const readLiteral = (
 
 const punctChars = new Set(['{', '}', '[', ']', ',', ':']);
 
+const escapeHtml = (value: string): string =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const unescapeHtml = (value: string): string =>
+  value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+export const highlightJsonSource = (source: string): string | null => {
+  const pretty = formatJson(source);
+  if (pretty === null) {
+    return null;
+  }
+  return tokenizeJson(pretty)
+    .map((token) =>
+      token.kind === 'space'
+        ? escapeHtml(token.text)
+        : `<span class="json-${token.kind}">${escapeHtml(token.text)}</span>`,
+    )
+    .join('');
+};
+
+export const highlightJsonBlocks = (html: string): string =>
+  html.replace(
+    /<code\b([^>]*\bclass="[^"]*\blanguage-json\b[^"]*"[^>]*)>([\s\S]*?)<\/code>/g,
+    (match, attrs: string, body: string) => {
+      const highlighted = highlightJsonSource(unescapeHtml(body));
+      if (highlighted === null) {
+        return match;
+      }
+      return `<code${attrs}>${highlighted}</code>`;
+    },
+  );
+
 export const tokenizeJson = (pretty: string): JsonToken[] => {
   const tokens: JsonToken[] = [];
   let index = 0;

@@ -172,14 +172,31 @@ export class DocumentsService {
 
   async writeDocument(relativePath: string, content: string): Promise<void> {
     const absolute = resolveDocsPath(this.root, relativePath);
-    const info = await stat(absolute).catch(() => {
-      throw new NotFoundException('Не найдено');
-    });
+    const info = await stat(absolute).catch(() => null);
+    if (!info) {
+      if (!(await this.canCreateImageNotes(absolute))) {
+        throw new NotFoundException('Не найдено');
+      }
+      await writeFile(absolute, content, 'utf8');
+      clearTreeCache();
+      return;
+    }
     if (!info.isFile()) {
       throw new BadRequestException('Путь не является файлом');
     }
     await writeFile(absolute, content, 'utf8');
     clearTreeCache();
+  }
+
+  private async canCreateImageNotes(absolute: string): Promise<boolean> {
+    const name = basename(absolute);
+    const suffix = '.notes.yaml';
+    if (!name.endsWith(suffix) || dirname(absolute).split(sep).pop() !== 'assets') {
+      return false;
+    }
+    const stem = name.slice(0, -suffix.length);
+    const png = await stat(join(dirname(absolute), `${stem}.png`)).catch(() => null);
+    return png?.isFile() === true;
   }
 
   async moveStatus(relativePath: string, status: FileStatus): Promise<{ path: string }> {
