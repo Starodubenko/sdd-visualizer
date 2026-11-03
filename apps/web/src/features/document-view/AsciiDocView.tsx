@@ -37,18 +37,22 @@ type Props = {
   onOpenFile: (path: string, highlight?: string | null, anchor?: string | null) => void;
   onAddSectionChange: (sectionTitle: string, blockBody: string) => void;
   editable: boolean;
+  onClearHighlight?: () => void;
+  onEditingChange?: (editing: boolean) => void;
   onSaveContent: (content: string) => Promise<void>;
 };
 
 type DocActions = {
   documentPath: string;
   canMarkNotes: boolean;
+  onClearHighlight: () => void;
   onOpenFile: (path: string, highlight?: string | null, anchor?: string | null) => void;
 };
 
 const DocActionsContext = createContext<DocActions>({
   documentPath: '',
   canMarkNotes: false,
+  onClearHighlight: () => undefined,
   onOpenFile: () => undefined,
 });
 
@@ -84,9 +88,16 @@ const markCopied = (button: HTMLButtonElement): void => {
   }, 1500);
 };
 
-const renderAssetHost = (host: HTMLElement, imagePath: string, canMarkNotes: boolean): Root => {
+const renderAssetHost = (
+  host: HTMLElement,
+  imagePath: string,
+  canMarkNotes: boolean,
+  onClearHighlight: () => void,
+): Root => {
   const canvasRoot = createRoot(host);
-  canvasRoot.render(<AssetCanvas imagePath={imagePath} editable={canMarkNotes} />);
+  canvasRoot.render(
+    <AssetCanvas imagePath={imagePath} editable={canMarkNotes} onClearHighlight={onClearHighlight} />,
+  );
   return canvasRoot;
 };
 
@@ -109,7 +120,11 @@ const mountNoteCrops = (root: HTMLElement, documentPath: string): Root[] => {
   return roots;
 };
 
-const mountAssetCanvases = (root: HTMLElement, canMarkNotes: boolean): Root[] => {
+const mountAssetCanvases = (
+  root: HTMLElement,
+  canMarkNotes: boolean,
+  onClearHighlight: () => void,
+): Root[] => {
   const roots: Root[] = [];
   root.querySelectorAll('.asset-notes-host').forEach((node) => {
     if (!(node instanceof HTMLElement)) {
@@ -119,7 +134,7 @@ const mountAssetCanvases = (root: HTMLElement, canMarkNotes: boolean): Root[] =>
     if (!imagePath) {
       return;
     }
-    roots.push(renderAssetHost(node, imagePath, canMarkNotes));
+    roots.push(renderAssetHost(node, imagePath, canMarkNotes, onClearHighlight));
   });
   if (roots.length > 0) {
     return roots;
@@ -136,14 +151,16 @@ const mountAssetCanvases = (root: HTMLElement, canMarkNotes: boolean): Root[] =>
     host.className = 'asset-notes-host';
     host.dataset.image = imagePath;
     node.replaceWith(host);
-    roots.push(renderAssetHost(host, imagePath, canMarkNotes));
+    roots.push(renderAssetHost(host, imagePath, canMarkNotes, onClearHighlight));
   });
   return roots;
 };
 
 const AdocHtml: FC<{ source: string }> = ({ source }) => {
-  const { documentPath, onOpenFile, canMarkNotes } = useContext(DocActionsContext);
+  const { documentPath, onOpenFile, canMarkNotes, onClearHighlight } = useContext(DocActionsContext);
   const container = useRef<HTMLDivElement>(null);
+  const clearHighlightRef = useRef(onClearHighlight);
+  clearHighlightRef.current = onClearHighlight;
   const [raw, setRaw] = useState(() => cachedAdocHtml(source));
 
   useEffect(() => {
@@ -175,7 +192,7 @@ const AdocHtml: FC<{ source: string }> = ({ source }) => {
       return;
     }
     const canvasRoots = [
-      ...mountAssetCanvases(root, canMarkNotes),
+      ...mountAssetCanvases(root, canMarkNotes, () => clearHighlightRef.current()),
       ...mountNoteCrops(root, documentPath),
     ];
     const onError = (event: Event) => {
@@ -281,6 +298,8 @@ export const AsciiDocView: FC<Props> = (props) => {
     onAddSectionChange,
     editable,
     onSaveContent,
+    onClearHighlight = () => undefined,
+    onEditingChange = () => undefined,
   } = props;
   const { prelude, sections } = splitAdocSections(content);
   const sourceFileName = currentFileName(documentPath);
@@ -311,8 +330,12 @@ export const AsciiDocView: FC<Props> = (props) => {
     setOpenSections((current) => ({ ...current, [key]: true }));
   };
 
+  useEffect(() => {
+    onEditingChange(editingKey !== null);
+  }, [editingKey, onEditingChange]);
+
   return (
-    <DocActionsContext.Provider value={{ documentPath, onOpenFile, canMarkNotes: editable }}>
+    <DocActionsContext.Provider value={{ documentPath, onOpenFile, canMarkNotes: editable, onClearHighlight }}>
       <div className="markdown adoc doc">
         {(editable || prelude.trim() !== '') && (
           <div className="doc-prelude">

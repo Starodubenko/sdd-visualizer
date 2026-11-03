@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm run build -w @sdd/web && npm run build -w @sdd/server",
     "test": "npm run test -w @sdd/web && npm run test -w @sdd/server",
+    "start": "npm run build && DOCS_ROOT=\"$PWD\" node apps/server/dist/main.js",
     "start:mock": "npm run build && node scripts/start-mock.mjs"
   }
 }

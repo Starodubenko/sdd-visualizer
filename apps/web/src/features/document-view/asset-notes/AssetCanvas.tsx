@@ -29,6 +29,7 @@ type Props = {
   imagePath: string;
   editable: boolean;
   startMarking?: boolean;
+  onClearHighlight?: () => void;
 };
 
 type Drag =
@@ -175,7 +176,12 @@ const drawNote = (
   context.fillText(String(number), rect.x, rect.y + 0.5);
 };
 
-export const AssetCanvas: FC<Props> = ({ imagePath, editable, startMarking = false }) => {
+export const AssetCanvas: FC<Props> = ({
+  imagePath,
+  editable,
+  startMarking = false,
+  onClearHighlight,
+}) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -265,7 +271,19 @@ export const AssetCanvas: FC<Props> = ({ imagePath, editable, startMarking = fal
   }, [image, box, notes, active, linked, marking, draft]);
 
   useEffect(() => {
+    if (!marking) {
+      return;
+    }
+    setLinked(null);
+    onClearHighlight?.();
+  }, [marking, onClearHighlight]);
+
+  useEffect(() => {
     const applyHash = () => {
+      if (marking) {
+        setLinked(null);
+        return;
+      }
       const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''));
       const index = notes.findIndex((_, noteIndex) => noteBlockElementId(imagePath, noteIndex + 1) === hash);
       setLinked(index === -1 ? null : index);
@@ -284,7 +302,7 @@ export const AssetCanvas: FC<Props> = ({ imagePath, editable, startMarking = fal
     applyHash();
     window.addEventListener('hashchange', applyHash);
     return () => window.removeEventListener('hashchange', applyHash);
-  }, [notes, imagePath, image, cssWidth]);
+  }, [notes, imagePath, image, cssWidth, marking]);
 
   useEffect(() => {
     if (!focusComment) {

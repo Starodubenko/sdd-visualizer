@@ -1906,6 +1906,7 @@ export const WorkspacePage: FC<Props> = (props) => {
               content={document.content}
               highlight={highlight}
               onOpenFile={openFile}
+              onClearHighlight={() => setHighlight(null)}
               onAfterStatusMove={onAfterStatusMove}
             />
           )}

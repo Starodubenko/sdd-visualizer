@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FC } from 'react';
+import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 import { createPortal } from 'react-dom';
 import {
   displayDocumentPath,
@@ -31,7 +31,7 @@ import { highlightForAnchor } from './adoc-sections';
 import { AsciiDocView } from './AsciiDocView';
 import { copyText } from './asset-notes/note-link';
 import { Toast } from '../../shared/Toast';
-import { fragmentBrowserHref, textFromFragmentHash } from './text-fragment';
+import { clearNavigationHighlightHash, fragmentBrowserHref, textFromFragmentHash } from './text-fragment';
 import { YamlView } from './YamlView';
 
 type Props = {
@@ -39,6 +39,7 @@ type Props = {
   content: string;
   highlight: string | null;
   onOpenFile: (path: string, highlight?: string | null) => void;
+  onClearHighlight: () => void;
   onAfterStatusMove: (newPath: string) => void;
 };
 
@@ -83,7 +84,8 @@ const fileStatus = (path: string): 'in_progress' | 'ready' | 'done' | null => {
 };
 
 export const DocumentView: FC<Props> = (props) => {
-  const { path, content, highlight, onOpenFile, onAfterStatusMove } = props;
+  const { path, content, highlight, onOpenFile, onClearHighlight, onAfterStatusMove } = props;
+  const suppressHighlight = useRef(false);
   const [documentText, setDocumentText] = useState(content);
   const articleRef = useRef<HTMLElement>(null);
   const [error, setError] = useState('');
@@ -250,16 +252,51 @@ export const DocumentView: FC<Props> = (props) => {
       });
   };
 
+  const clearHighlightRef = useRef(onClearHighlight);
+  clearHighlightRef.current = onClearHighlight;
+  const clearNavigationHighlight = useCallback(() => {
+    if (articleRef.current) {
+      clearHighlight(articleRef.current);
+    }
+    clearHighlightRef.current();
+    clearNavigationHighlightHash();
+  }, []);
+
+  const onEditingChange = useCallback((editing: boolean) => {
+    suppressHighlight.current = editing;
+    if (editing) {
+      clearNavigationHighlight();
+    }
+  }, [clearNavigationHighlight]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      clearNavigationHighlight();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [clearNavigationHighlight]);
+
   useEffect(() => {
     const article = articleRef.current;
     if (!article) {
       return;
     }
     clearHighlight(article);
+    if (suppressHighlight.current) {
+      clearNavigationHighlight();
+      return;
+    }
     if (!highlight || highlight.trim() === '') {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
+      if (suppressHighlight.current) {
+        return;
+      }
       const mark = highlightFragment(article, highlight);
       mark?.scrollIntoView({ block: 'center', inline: 'nearest' });
     });
@@ -274,6 +311,10 @@ export const DocumentView: FC<Props> = (props) => {
       return;
     }
     const applyHash = () => {
+      if (suppressHighlight.current) {
+        clearHighlight(article);
+        return;
+      }
       const pagePath = new URLSearchParams(window.location.search).get('path');
       const text = textFromFragmentHash(window.location.hash);
       if (!text || pagePath !== path || article.querySelector('mark.text-hit')) {
@@ -348,6 +389,8 @@ export const DocumentView: FC<Props> = (props) => {
             onOpenFile={openLinkedFile}
             onAddSectionChange={submitSectionChange}
             editable={editable}
+            onClearHighlight={clearNavigationHighlight}
+            onEditingChange={onEditingChange}
             onSaveContent={saveContent}
           />
         )}
@@ -363,7 +406,14 @@ export const DocumentView: FC<Props> = (props) => {
             onAddSectionChange={submitSectionChange}
           />
         )}
-        {isImage && <AssetCanvas imagePath={path} editable startMarking />}
+        {isImage && (
+          <AssetCanvas
+            imagePath={path}
+            editable
+            startMarking
+            onClearHighlight={clearNavigationHighlight}
+          />
+        )}
         {!isAdoc && !isYaml && !isImage && <pre>{content}</pre>}
         {error && <p className="error">{error}</p>}
       </div>

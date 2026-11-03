@@ -20,6 +20,30 @@ export const fragmentBrowserHref = (pageHref: string, text: string): string => {
   return url.toString();
 };
 
+export const isNavigationHighlightHash = (hash: string): boolean => {
+  if (textFromFragmentHash(hash)) {
+    return true;
+  }
+  const raw = hash.replace(/^#/, '');
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    decoded = raw;
+  }
+  return decoded.startsWith('asset-note-');
+};
+
+export const clearNavigationHighlightHash = (): void => {
+  if (typeof window === 'undefined' || !isNavigationHighlightHash(window.location.hash)) {
+    return;
+  }
+  const nextUrl = new URL(window.location.href);
+  nextUrl.hash = '';
+  window.history.replaceState(null, '', nextUrl.toString());
+  window.dispatchEvent(new HashChangeEvent('hashchange'));
+};
+
 export const textFromFragmentHash = (hash: string): string | null => {
   const raw = hash.replace(/^#/, '');
   let decoded = raw;
